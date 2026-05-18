@@ -19,11 +19,15 @@ def _format_set_line(s: dict[str, Any]) -> str:
     label = f"Set {s['set_number']}"
     if s.get("is_warmup"):
         label += " · KD"
+    if str(s.get("set_status") or "") == "failed":
+        label += " · FAIL"
     text = f"{label}: {s['weight']:g}kg × {s['reps']}"
     if s.get("rpe") is not None:
         text += f" @RPE{s['rpe']:g}"
     if s.get("note"):
         text += f" — {s['note']}"
+    if s.get("actual_rest_seconds") is not None:
+        text += f" · nghỉ {int(s['actual_rest_seconds'])}s"
     return text
 
 

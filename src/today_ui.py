@@ -26,6 +26,7 @@ def render_today_tab() -> None:
         return
 
     st.markdown('<p class="gym-section-title">Hôm nay bạn tập gì?</p>', unsafe_allow_html=True)
+    st.caption("Tập từng set (kg, rep, nghỉ): mở tab **Focus Mode**.")
 
     templates = tpl_svc.list_active_templates()
     if templates.empty:
@@ -64,7 +65,7 @@ def render_today_tab() -> None:
     _ensure_workout_draft(selected_id, exercises)
 
     st.divider()
-    st.markdown("### Nhập buổi tập")
+    st.markdown("### Nhập buổi tập (form)")
     _render_session_meta(selected_id)
 
     st.markdown(f"**Danh sách bài** ({len(exercises)})")

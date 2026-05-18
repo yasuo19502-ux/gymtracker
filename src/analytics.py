@@ -42,6 +42,7 @@ def _normalize_sets(sets: Sequence[Mapping[str, Any]] | pd.DataFrame) -> list[di
                 "reps": int(row["reps"]),
                 "rpe": float(row["rpe"]) if row.get("rpe") is not None else None,
                 "is_warmup": int(row.get("is_warmup") or 0),
+                "set_status": str(row.get("set_status") or "completed"),
             }
         )
     normalized.sort(key=lambda s: s["set_number"])
@@ -93,7 +94,11 @@ def summarize_exercise_sets(sets: Sequence[Mapping[str, Any]] | pd.DataFrame) ->
             "total_volume_kg": 0.0,
         }
 
-    working = [s for s in normalized if not s["is_warmup"]]
+    working = [
+        s
+        for s in normalized
+        if not s["is_warmup"] and str(s.get("set_status") or "completed") != "failed"
+    ]
     set_lines = [
         _format_set_line(s["set_number"], s["weight"], s["reps"], s["rpe"], s["is_warmup"])
         for s in normalized
@@ -136,7 +141,8 @@ def _fetch_session_sets(session_id: int) -> pd.DataFrame:
                 ws.weight,
                 ws.reps,
                 ws.rpe,
-                ws.is_warmup
+                ws.is_warmup,
+                COALESCE(ws.set_status, 'completed') AS set_status
             FROM workout_sets ws
             JOIN exercises e ON e.exercise_id = ws.exercise_id
             JOIN workout_sessions s ON s.session_id = ws.session_id
@@ -169,6 +175,8 @@ def _session_totals(sets_df: pd.DataFrame) -> dict[str, Any]:
         }
 
     working = sets_df[sets_df["is_warmup"] == 0] if "is_warmup" in sets_df.columns else sets_df
+    if "set_status" in working.columns:
+        working = working[working["set_status"].fillna("completed") != "failed"]
     total_volume = float(
         working.apply(lambda r: calculate_volume(r["weight"], r["reps"]), axis=1).sum()
     )
@@ -483,7 +491,8 @@ def _fetch_sets_for_sessions(
             ws.weight,
             ws.reps,
             ws.rpe,
-            ws.is_warmup
+            ws.is_warmup,
+            COALESCE(ws.set_status, 'completed') AS set_status
         FROM workout_sets ws
         JOIN workout_sessions s ON s.session_id = ws.session_id
         WHERE ws.exercise_id = ?
@@ -503,6 +512,8 @@ def _fetch_sets_for_sessions(
 def _summarize_session_group(session_id: int, session_date: str, group: pd.DataFrame) -> dict[str, Any]:
     stats = summarize_exercise_sets(group)
     working = group[group["is_warmup"] == 0] if not group.empty else group
+    if not working.empty and "set_status" in working.columns:
+        working = working[working["set_status"].fillna("completed") != "failed"]
     max_e1rm = 0.0
     best_weight = 0.0
     if not working.empty:
@@ -629,6 +640,8 @@ def get_exercise_prs(exercise_id: int) -> dict[str, Any]:
         return empty
 
     working = sets_df[sets_df["is_warmup"] == 0].copy()
+    if "set_status" in working.columns:
+        working = working[working["set_status"].fillna("completed") != "failed"]
     if working.empty:
         return empty
 
@@ -743,6 +756,8 @@ def _working_sets_from_group(group: pd.DataFrame) -> list[dict[str, Any]]:
     if group.empty:
         return []
     working = group[group["is_warmup"] == 0] if "is_warmup" in group.columns else group
+    if "set_status" in working.columns:
+        working = working[working["set_status"].fillna("completed") != "failed"]
     sets: list[dict[str, Any]] = []
     for row in working.itertuples(index=False):
         sets.append(

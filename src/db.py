@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS template_exercises (
     target_rep_max INTEGER DEFAULT 12,
     increment_kg REAL DEFAULT 2.5,
     note TEXT,
+    rest_seconds INTEGER DEFAULT 180,
     is_active INTEGER DEFAULT 1,
     FOREIGN KEY (template_id) REFERENCES workout_templates(template_id),
     FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id),
@@ -74,6 +75,11 @@ CREATE TABLE IF NOT EXISTS workout_sets (
     is_warmup INTEGER DEFAULT 0,
     note TEXT,
     status TEXT DEFAULT 'active',
+    started_at TEXT,
+    ended_at TEXT,
+    rest_seconds INTEGER,
+    actual_rest_seconds INTEGER,
+    set_status TEXT DEFAULT 'completed',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES workout_sessions(session_id),
     FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id)
@@ -163,6 +169,35 @@ def run_migrations() -> None:
                 setting_value TEXT NOT NULL,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
+            """
+        )
+
+        if not _table_has_column(conn, "template_exercises", "rest_seconds"):
+            conn.execute(
+                """
+                ALTER TABLE template_exercises
+                ADD COLUMN rest_seconds INTEGER DEFAULT 180
+                """
+            )
+
+        focus_set_columns: list[tuple[str, str]] = [
+            ("started_at", "TEXT"),
+            ("ended_at", "TEXT"),
+            ("rest_seconds", "INTEGER"),
+            ("actual_rest_seconds", "INTEGER"),
+            ("set_status", "TEXT DEFAULT 'completed'"),
+        ]
+        for col_name, col_def in focus_set_columns:
+            if not _table_has_column(conn, "workout_sets", col_name):
+                conn.execute(
+                    f"ALTER TABLE workout_sets ADD COLUMN {col_name} {col_def}"
+                )
+
+        conn.execute(
+            """
+            UPDATE workout_sets
+            SET set_status = 'completed'
+            WHERE set_status IS NULL
             """
         )
 

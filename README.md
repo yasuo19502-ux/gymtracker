@@ -9,6 +9,7 @@ Dữ liệu lưu trong **SQLite** (`gym_tracker.db` cạnh `app.py`). Không c�
 | Tab | Mô tả |
 |-----|--------|
 | **Tập hôm nay** | Chọn template, xem lịch sử lần trước, nhập set, nhập bù ngày quá khứ, hoàn thành buổi tập |
+| **Focus Mode** | Tập live từng set: START → nhập kg/rep → nghỉ tự động → lưu buổi như form thường |
 | **Lịch tập** | Lịch tháng, badge template, chi tiết/xem/sửa/xóa mềm buổi tập |
 | **Tiến bộ** | Biểu đồ e1RM, volume, PR, cảnh báo plateau |
 | **AI Coach** | Phân tích buổi tập & chat hỏi đáp (cần API key) |
@@ -46,6 +47,18 @@ Mở URL Streamlit in ra (thường `http://localhost:8501`).
 Lần chạy đầu: tự tạo `gym_tracker.db` và **seed** 5 template mẫu (Chân, Ngực, Lưng, Vai, Tay) nếu database trống.
 
 Windows: double-click `ChayApp.bat` thay cho lệnh trên.
+
+## Focus Training Mode
+
+Tab **Focus Mode** — tập live theo từng set (mobile-first):
+
+1. Chọn **template đã lưu** (ví dụ Chân, Ngực…).
+2. Bấm **START** để bắt đầu set; bấm **ĐANG TẬP** khi xong set để nhập kg/rep (có gợi ý từ set trước).
+3. App tự **đếm thời gian nghỉ** (mặc định 3 phút); có thể **+1 phút** hoặc bắt đầu set tiếp theo.
+4. **Kết thúc buổi** → nhập ngày/năng lượng/ghi chú → lưu vào `workout_sessions` / `workout_sets` **giống buổi tập form thường**.
+5. Dữ liệu hiện trong **Lịch tập** và **Tiến bộ**; AI Coach dùng được nếu có API key.
+
+Logic state: `src/focus_mode.py` · Giao diện: `src/focus_ui.py` · CSS: `assets/style.css`.
 
 ## Đưa lên web (GitHub + Streamlit Cloud)
 
@@ -98,8 +111,6 @@ gym_tracker/
 ├── gym_tracker.db         # SQLite (tạo khi chạy)
 ├── assets/
 │   └── style.css          # Mobile-first CSS
-├── scripts/
-│   └── smoke_test.py      # Kiểm tra edge case (tùy chọn)
 └── src/
     ├── bootstrap.py       # Khởi tạo DB + CSS
     ├── db.py              # Schema + migration an toàn
@@ -109,6 +120,9 @@ gym_tracker/
     ├── workout_service.py
     ├── analytics.py
     ├── today_ui.py
+    ├── focus_mode.py       # State / flow Focus Mode
+    ├── focus_ui.py         # UI tab Focus Mode
+    ├── focus_mode_ui.py    # Re-export (tương thích import cũ)
     ├── calendar_ui.py
     ├── progress_ui.py
     ├── session_summary_ui.py
@@ -126,12 +140,6 @@ Khi mở app, `init_schema()` + `run_migrations()`:
 - Tạo bảng nếu chưa có (`CREATE TABLE IF NOT EXISTS`)  
 - Thêm cột thiếu trên DB cũ (ví dụ `workout_sessions.status`, `workout_sets.status`)  
 - **Không** xóa hay ghi đè dữ liệu hiện có  
-
-## Kiểm tra nhanh (smoke test)
-
-```bash
-python scripts/smoke_test.py
-```
 
 ## Lưu ý
 

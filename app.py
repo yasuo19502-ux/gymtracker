@@ -23,6 +23,8 @@ from src.calendar_ui import render_calendar_tab
 from src.progress_ui import render_progress_tab
 from src.settings_ui import render_settings_tab
 from src.session_summary_ui import NAV_HINT_KEY
+from src.focus_mode import init_focus_state, is_focus_mode_active
+from src.focus_ui import render_focus_tab
 from src.today_ui import render_today_tab
 
 
@@ -46,6 +48,13 @@ def main() -> None:
     if st.session_state.pop("db_seeded", False):
         st.toast("Đã tạo database và dữ liệu mẫu.", icon="✅")
 
+    init_focus_state()
+    if is_focus_mode_active():
+        from src.focus_ui import render_focus_mode_active_fullscreen
+
+        render_focus_mode_active_fullscreen()
+        return
+
     st.markdown("# Gym Progress Tracker AI")
     st.caption("Theo dõi buổi tập gym — tối ưu cho điện thoại")
 
@@ -53,12 +62,14 @@ def main() -> None:
     if nav_hint:
         st.info(f"👉 Mở tab **{nav_hint}** trên thanh tab phía trên.")
 
-    tab_today, tab_calendar, tab_progress, tab_ai, tab_settings = st.tabs(
-        ["Tập hôm nay", "Lịch tập", "Tiến bộ", "AI Coach", "Cài đặt"]
+    tab_today, tab_focus, tab_calendar, tab_progress, tab_ai, tab_settings = st.tabs(
+        ["Tập hôm nay", "Focus Mode", "Lịch tập", "Tiến bộ", "AI Coach", "Cài đặt"]
     )
 
     with tab_today:
         render_today_tab()
+    with tab_focus:
+        render_focus_tab()
     with tab_calendar:
         render_calendar_tab()
     with tab_progress:

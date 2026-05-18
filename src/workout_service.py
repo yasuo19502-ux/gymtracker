@@ -107,7 +107,8 @@ def get_template_workout_plan(template_id: int) -> dict[str, Any]:
                 te.target_rep_min,
                 te.target_rep_max,
                 te.increment_kg,
-                te.note
+                te.note,
+                COALESCE(te.rest_seconds, 180) AS rest_seconds
             FROM template_exercises te
             JOIN exercises e ON e.exercise_id = te.exercise_id
             WHERE te.template_id = ?
@@ -442,10 +443,12 @@ def normalize_workout_set(set_data: dict[str, Any], set_number: int) -> dict[str
     """
     Normalize a set dict for DB insert.
     Returns None if the set is empty and should be skipped.
+    Failed sets (Focus Mode) are kept even when weight/reps are zero.
     """
     weight = float(set_data.get("weight") or 0)
     reps = int(set_data.get("reps") or 0)
-    if _is_empty_set(weight, reps):
+    set_status = str(set_data.get("set_status") or "completed")
+    if _is_empty_set(weight, reps) and set_status != "failed":
         return None
 
     rpe_raw = set_data.get("rpe")
@@ -527,6 +530,11 @@ def save_workout_sets(
                 normalized["rpe"],
                 normalized["is_warmup"],
                 normalized.get("note"),
+                raw.get("started_at"),
+                raw.get("ended_at"),
+                raw.get("rest_seconds"),
+                raw.get("actual_rest_seconds"),
+                raw.get("set_status") or "completed",
             )
         )
 
@@ -538,13 +546,54 @@ def save_workout_sets(
             """
             INSERT INTO workout_sets (
                 session_id, exercise_id, set_number,
-                weight, reps, rpe, is_warmup, note, status
+                weight, reps, rpe, is_warmup, note, status,
+                started_at, ended_at, rest_seconds, actual_rest_seconds, set_status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
             """,
             rows,
         )
     return len(rows)
+
+
+def save_focus_workout_session(
+    template_id: int,
+    session_date: str | date,
+    focus_data: dict[int, list[dict[str, Any]]],
+    *,
+    energy_level: int | None = None,
+    sleep_hours: float | None = None,
+    body_weight: float | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """
+    Persist a Focus Mode workout (same tables as form entry).
+    focus_data: exercise_id -> list of set dicts from focus_workout_data.
+    """
+    exercises_payload: list[dict[str, Any]] = []
+    for exercise_id, sets_list in focus_data.items():
+        if not sets_list:
+            continue
+        exercises_payload.append(
+            {
+                "exercise_id": int(exercise_id),
+                "skipped": False,
+                "sets": sets_list,
+            }
+        )
+
+    if not exercises_payload:
+        raise WorkoutValidationError(["Phải có ít nhất 1 set hợp lệ trong buổi tập."])
+
+    return save_full_workout_session(
+        template_id,
+        session_date,
+        exercises_payload,
+        energy_level=energy_level,
+        sleep_hours=sleep_hours,
+        body_weight=body_weight,
+        note=note,
+    )
 
 
 def save_full_workout_session(
@@ -578,18 +627,21 @@ def save_full_workout_session(
 
         normalized_sets: list[dict[str, Any]] = []
         for idx, raw in enumerate(raw_sets, start=1):
-            if _is_empty_set(float(raw.get("weight") or 0), int(raw.get("reps") or 0)):
+            set_num = int(raw.get("set_number") or idx)
+            is_failed = str(raw.get("set_status") or "") == "failed"
+            if _is_empty_set(float(raw.get("weight") or 0), int(raw.get("reps") or 0)) and not is_failed:
                 continue
             errors.extend(
                 validate_workout_set(
                     raw,
                     exercise_name=exercise_name,
-                    set_number=idx,
+                    set_number=set_num,
                 )
             )
-            norm = normalize_workout_set(raw, idx)
+            norm = normalize_workout_set(raw, set_num)
             if norm:
-                normalized_sets.append(norm)
+                row = {**norm, **raw}
+                normalized_sets.append(row)
 
         if normalized_sets:
             prepared.append((exercise_id, normalized_sets))
@@ -681,7 +733,12 @@ def get_session_sets_detail(session_id: int) -> list[dict[str, Any]]:
                 ws.reps,
                 ws.rpe,
                 ws.is_warmup,
-                ws.note
+                ws.note,
+                ws.started_at,
+                ws.ended_at,
+                ws.rest_seconds,
+                ws.actual_rest_seconds,
+                COALESCE(ws.set_status, 'completed') AS set_status
             FROM workout_sets ws
             JOIN exercises e ON e.exercise_id = ws.exercise_id
             WHERE ws.session_id = ?
@@ -709,6 +766,11 @@ def get_session_sets_detail(session_id: int) -> list[dict[str, Any]]:
                 "rpe": float(row["rpe"]) if row["rpe"] is not None else None,
                 "is_warmup": int(row["is_warmup"] or 0),
                 "note": row["note"],
+                "started_at": row["started_at"],
+                "ended_at": row["ended_at"],
+                "rest_seconds": row["rest_seconds"],
+                "actual_rest_seconds": row["actual_rest_seconds"],
+                "set_status": row["set_status"],
             }
         )
     return list(groups.values())
