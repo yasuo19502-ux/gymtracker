@@ -106,10 +106,16 @@ def _ensure_workout_draft(template_id: int, exercises) -> None:
     st.session_state.setdefault(f"workout_{template_id}_note", "")
 
 
-def _reset_workout_draft_after_save(template_id: int, exercises) -> None:
-    """Re-init draft inputs after successful save."""
+def _clear_workout_draft_keys(template_id: int, exercises) -> None:
+    """
+    Remove draft keys after save. Must not assign widget-bound keys in the same
+    run as checkboxes/inputs — only pop, then st.rerun() re-inits via _ensure_workout_draft.
+    """
     st.session_state.pop(WORKOUT_ACTIVE_TEMPLATE_KEY, None)
-    _ensure_workout_draft(template_id, exercises)
+    for row in exercises.itertuples(index=False):
+        eid = int(row.exercise_id)
+        st.session_state.pop(_sets_state_key(template_id, eid), None)
+        st.session_state.pop(_skip_state_key(template_id, eid), None)
 
 
 def _render_template_picker(templates) -> None:
@@ -389,7 +395,7 @@ def _render_complete_workout(template_id: int, exercises) -> None:
         session_id = int(result["session_id"])
         st.session_state[LAST_COMPLETED_SESSION_KEY] = session_id
         st.session_state[VIEWING_SUMMARY_KEY] = session_id
-        _reset_workout_draft_after_save(template_id, exercises)
+        _clear_workout_draft_keys(template_id, exercises)
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
