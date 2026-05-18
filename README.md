@@ -60,19 +60,33 @@ set GYM_TRACKER_DB=D:\data\my_gym.db
 streamlit run app.py
 ```
 
-## Cấu hình AI API
+## Cấu hình AI API (Gemini / OpenAI)
 
 1. Sao chép `.env.example` → `.env`  
-2. Điền biến môi trường:
+2. **Gemini** — lấy key tại https://aistudio.google.com/apikey
 
 ```env
-AI_API_KEY=sk-...
-AI_MODEL=gpt-4o-mini
-AI_BASE_URL=https://api.openai.com/v1
+AI_API_KEY=AIza...your_key
+AI_MODEL=gemini-2.0-flash
+AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 ```
 
-- Hỗ trợ API **OpenAI-compatible** (OpenAI, proxy, local gateway).  
-- **Không có API key**: app vẫn chạy bình thường; tab AI Coach hiển thị hướng dẫn cấu hình, không crash.  
+3. **OpenAI** — dùng `gpt-4o-mini` và `https://api.openai.com/v1`
+
+- Hỗ trợ mọi API **OpenAI-compatible**.  
+- Trên web: cấu hình trong Streamlit **Secrets** (xem [DEPLOY.md](DEPLOY.md)).  
+- **Không có API key**: app vẫn chạy; tab AI Coach không gọi API.
+
+## Dữ liệu lưu ở đâu?
+
+| Môi trường | File / nơi lưu |
+|------------|----------------|
+| **Máy bạn (local)** | `gym_tracker/gym_tracker.db` (SQLite) |
+| **Web (Streamlit Cloud)** | `gym_tracker.db` trên server Streamlit (riêng, không đồng bộ với máy) |
+
+Trong DB: buổi tập (`workout_sessions`), set (`workout_sets`), template, bài tập, phân tích AI đã lưu (`ai_reviews`).  
+**Hội thoại chat AI** chỉ trong phiên trình duyệt (không lưu DB).  
+Nên **backup** file `gym_tracker.db` trên máy nếu dữ liệu quan trọng.
 
 ## Cấu trúc project
 
