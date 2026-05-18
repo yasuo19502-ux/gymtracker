@@ -1,0 +1,5 @@
+# Gym Progress Tracker AI — Python 3.11+
+streamlit>=1.32.0,<2
+pandas>=2.2.0,<3
+plotly>=5.18.0,<6
+python-dotenv>=1.0.0,<2
