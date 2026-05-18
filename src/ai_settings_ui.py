@@ -7,12 +7,14 @@ import streamlit as st
 from src.app_settings import (
     DEFAULT_GEMINI_BASE_URL,
     DEFAULT_GEMINI_MODEL,
+    GEMINI_MODEL_OPTIONS,
     KEY_AI_API_KEY,
     KEY_AI_BASE_URL,
     KEY_AI_MODEL,
     ai_credentials_summary,
     clear_ai_credentials,
     get_setting,
+    normalize_gemini_base_url,
     save_ai_credentials,
     set_setting,
 )
@@ -56,14 +58,20 @@ def render_ai_settings_panel(*, compact: bool = False, form_key: str = "settings
             autocomplete="off",
             key=f"{form_key}_api_key",
         )
-        model = st.text_input(
-            "Model",
-            value=summary["model"] or DEFAULT_GEMINI_MODEL,
+        current_model = summary["model"] or DEFAULT_GEMINI_MODEL
+        model_options = list(GEMINI_MODEL_OPTIONS)
+        if current_model not in model_options:
+            model_options.insert(0, current_model)
+        model = st.selectbox(
+            "Model (Gemini)",
+            options=model_options,
+            index=model_options.index(current_model),
             key=f"{form_key}_model",
         )
         base_url = st.text_input(
-            "Base URL (OpenAI-compatible)",
+            "Base URL",
             value=summary["base_url"] or DEFAULT_GEMINI_BASE_URL,
+            help="Giữ mặc định cho Gemini. Không dùng api.openai.com với key Gemini.",
             key=f"{form_key}_base_url",
         )
 
@@ -93,7 +101,10 @@ def render_ai_settings_panel(*, compact: bool = False, form_key: str = "settings
                 st.error("Chưa có key. Vui lòng nhập API key.")
                 return
             set_setting(KEY_AI_MODEL, model.strip() or DEFAULT_GEMINI_MODEL)
-            set_setting(KEY_AI_BASE_URL, base_url.strip() or DEFAULT_GEMINI_BASE_URL)
+            set_setting(
+                KEY_AI_BASE_URL,
+                normalize_gemini_base_url(base_url or DEFAULT_GEMINI_BASE_URL),
+            )
             st.success("Đã cập nhật model / URL.")
             st.rerun()
             return

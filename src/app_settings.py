@@ -10,8 +10,49 @@ KEY_AI_API_KEY = "ai_api_key"
 KEY_AI_MODEL = "ai_model"
 KEY_AI_BASE_URL = "ai_base_url"
 
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
-DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+# Model cũ trên AI Studio có thể trả 404 — map sang tên còn hỗ trợ
+GEMINI_MODEL_ALIASES: dict[str, str] = {
+    "gemini-2.0-flash": "gemini-2.5-flash",
+    "gemini-2.0-flash-exp": "gemini-2.5-flash",
+    "gemini-2.0-flash-001": "gemini-2.5-flash",
+    "gemini-pro": "gemini-2.5-flash",
+    "gemini-1.5-flash": "gemini-2.5-flash",
+}
+
+GEMINI_MODEL_OPTIONS: tuple[str, ...] = (
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+)
+
+
+def is_gemini_base_url(base_url: str) -> bool:
+    return "generativelanguage.googleapis.com" in (base_url or "")
+
+
+def normalize_gemini_base_url(base_url: str | None) -> str:
+    """Ensure OpenAI-compat path ends with /v1beta/openai (tránh 404)."""
+    if not base_url or not base_url.strip():
+        return DEFAULT_GEMINI_BASE_URL
+    b = base_url.strip().rstrip("/")
+    if not is_gemini_base_url(b):
+        return b
+    if b.endswith("/openai"):
+        return b
+    if b.endswith("/v1beta"):
+        return f"{b}/openai"
+    return DEFAULT_GEMINI_BASE_URL
+
+
+def normalize_gemini_model(model: str | None, base_url: str) -> str:
+    if not is_gemini_base_url(base_url):
+        return (model or "gpt-4o-mini").strip()
+    name = (model or DEFAULT_GEMINI_MODEL).strip()
+    return GEMINI_MODEL_ALIASES.get(name, name)
 
 
 def _ensure_table() -> None:
@@ -83,14 +124,10 @@ def save_ai_credentials(
     if not key or key == "your_api_key_here":
         raise ValueError("API key không hợp lệ.")
     set_setting(KEY_AI_API_KEY, key)
-    set_setting(
-        KEY_AI_MODEL,
-        (model or DEFAULT_GEMINI_MODEL).strip(),
-    )
-    set_setting(
-        KEY_AI_BASE_URL,
-        (base_url or DEFAULT_GEMINI_BASE_URL).strip(),
-    )
+    normalized_base = normalize_gemini_base_url(base_url or DEFAULT_GEMINI_BASE_URL)
+    normalized_model = normalize_gemini_model(model, normalized_base)
+    set_setting(KEY_AI_MODEL, normalized_model)
+    set_setting(KEY_AI_BASE_URL, normalized_base)
 
 
 def clear_ai_credentials() -> None:

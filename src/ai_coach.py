@@ -58,24 +58,32 @@ def get_ai_config() -> dict[str, str | None]:
         DEFAULT_GEMINI_BASE_URL,
         DEFAULT_GEMINI_MODEL,
         get_ai_credentials,
+        is_gemini_base_url,
+        normalize_gemini_base_url,
+        normalize_gemini_model,
     )
 
     stored = get_ai_credentials()
     api_key = (stored.get("api_key") or "").strip() or os.getenv("AI_API_KEY")
-    model = (
-        (stored.get("model") or "").strip()
-        or os.getenv("AI_MODEL")
-        or DEFAULT_GEMINI_MODEL
-    )
-    base_url = (
+    raw_base = (
         (stored.get("base_url") or "").strip()
         or os.getenv("AI_BASE_URL")
         or DEFAULT_GEMINI_BASE_URL
     )
+    base_url = normalize_gemini_base_url(raw_base)
+    model = normalize_gemini_model(
+        (stored.get("model") or "").strip() or os.getenv("AI_MODEL") or DEFAULT_GEMINI_MODEL,
+        base_url,
+    )
+    # Key Gemini + URL OpenAI → 404 chắc chắn
+    if api_key and api_key.startswith("AIza") and not is_gemini_base_url(base_url):
+        base_url = DEFAULT_GEMINI_BASE_URL
+        model = normalize_gemini_model(model, base_url)
+
     return {
         "api_key": api_key,
         "model": model,
-        "base_url": base_url.strip() if base_url else DEFAULT_GEMINI_BASE_URL,
+        "base_url": base_url,
     }
 
 
@@ -529,31 +537,19 @@ def _assemble_context(
     }
 
 
-def call_ai_api(
-    prompt: str,
+def _chat_completion_request(
+    config: dict[str, str | None],
+    chat_messages: list[dict[str, str]],
     *,
-    system: str | None = None,
-    messages: list[dict[str, str]] | None = None,
+    model_override: str | None = None,
 ) -> str:
-    """Call OpenAI-compatible chat completions API."""
-    if not is_ai_configured():
-        raise AIConfigError("Chưa cấu hình AI API key.")
-
-    config = get_ai_config()
     base = (config.get("base_url") or "https://api.openai.com/v1").rstrip("/")
     url = f"{base}/chat/completions"
-
-    chat_messages: list[dict[str, str]] = []
-    if messages:
-        chat_messages = list(messages)
-    else:
-        if system:
-            chat_messages.append({"role": "system", "content": system})
-        chat_messages.append({"role": "user", "content": prompt})
+    model = model_override or config.get("model") or "gpt-4o-mini"
 
     payload = json.dumps(
         {
-            "model": config.get("model") or "gpt-4o-mini",
+            "model": model,
             "messages": chat_messages,
             "temperature": 0.6,
         }
@@ -572,25 +568,75 @@ def call_ai_api(
     try:
         with urllib.request.urlopen(request, timeout=90) as response:
             data = json.loads(response.read().decode("utf-8"))
-        content = data.get("choices", [{}])[0].get("message", {}).get("content")
-        if not content:
-            raise AIAPIError("API không trả về nội dung.")
-        return str(content).strip()
     except urllib.error.HTTPError as exc:
         try:
             err_json = json.loads(exc.read().decode("utf-8"))
             err_msg = err_json.get("error", {}).get("message", str(exc))
         except Exception:
             err_msg = str(exc)
-        raise AIAPIError(f"API lỗi ({exc.code}): {err_msg}") from exc
+        hint = ""
+        if exc.code == 404:
+            from src.app_settings import DEFAULT_GEMINI_BASE_URL, DEFAULT_GEMINI_MODEL
+
+            if "generativelanguage.googleapis.com" in base:
+                hint = (
+                    f" Kiểm tra Model (thử `{DEFAULT_GEMINI_MODEL}`) và Base URL: "
+                    f"`{DEFAULT_GEMINI_BASE_URL}` — lưu lại trong Cài đặt → AI."
+                )
+            elif str(config.get("api_key", "")).startswith("AIza"):
+                hint = (
+                    " API key Gemini nhưng Base URL đang trỏ OpenAI. "
+                    f"Dùng `{DEFAULT_GEMINI_BASE_URL}`."
+                )
+        raise AIAPIError(f"API lỗi ({exc.code}): {err_msg}.{hint}") from exc
     except urllib.error.URLError as exc:
         raise AIAPIError(
-            "Không kết nối được API. Kiểm tra mạng hoặc AI_BASE_URL trong .env."
+            "Không kết nối được API. Kiểm tra mạng hoặc Base URL trong Cài đặt → AI."
         ) from exc
-    except AIAPIError:
+
+    content = data.get("choices", [{}])[0].get("message", {}).get("content")
+    if not content:
+        raise AIAPIError("API không trả về nội dung.")
+    return str(content).strip()
+
+
+def call_ai_api(
+    prompt: str,
+    *,
+    system: str | None = None,
+    messages: list[dict[str, str]] | None = None,
+) -> str:
+    """Call OpenAI-compatible chat completions API."""
+    if not is_ai_configured():
+        raise AIConfigError("Chưa cấu hình AI API key.")
+
+    config = get_ai_config()
+
+    chat_messages: list[dict[str, str]] = []
+    if messages:
+        chat_messages = list(messages)
+    else:
+        if system:
+            chat_messages.append({"role": "system", "content": system})
+        chat_messages.append({"role": "user", "content": prompt})
+
+    model = config.get("model") or "gpt-4o-mini"
+    try:
+        return _chat_completion_request(config, chat_messages)
+    except AIAPIError as exc:
+        from src.app_settings import DEFAULT_GEMINI_MODEL, is_gemini_base_url
+
+        if (
+            "404" in str(exc)
+            and is_gemini_base_url(str(config.get("base_url") or ""))
+            and model != DEFAULT_GEMINI_MODEL
+        ):
+            return _chat_completion_request(
+                config,
+                chat_messages,
+                model_override=DEFAULT_GEMINI_MODEL,
+            )
         raise
-    except Exception as exc:
-        raise AIAPIError(f"Lỗi khi gọi AI: {exc}") from exc
 
 
 def answer_training_question(
