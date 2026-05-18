@@ -156,6 +156,16 @@ def run_migrations() -> None:
                 """
             )
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
 
 # SQL fragments — treat NULL as legacy active rows
 SESSION_ACTIVE_WHERE = "COALESCE(s.status, 'completed') != 'deleted'"
@@ -170,6 +180,7 @@ _ALLOWED_TABLES = frozenset(
         "workout_sessions",
         "workout_sets",
         "ai_reviews",
+        "app_settings",
     }
 )
 

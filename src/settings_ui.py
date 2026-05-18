@@ -22,6 +22,11 @@ def render_settings_tab() -> None:
     st.subheader("Cài đặt")
     st.caption("Quản lý template buổi tập, bài tập và gán bài vào template.")
 
+    with st.expander("🔑 Cấu hình AI (Gemini)", expanded=False):
+        from src.ai_settings_ui import render_ai_settings_panel
+
+        render_ai_settings_panel()
+
     with st.expander("📋 Template buổi tập", expanded=False):
         _render_template_section()
 

@@ -111,7 +111,12 @@ AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 
 4. Khởi động lại app (`ChayApp.bat`)
 
-#### Chạy trên Streamlit Cloud
+#### Chạy trên Streamlit Cloud (cách dễ — nhập trên web)
+
+1. Mở app → tab **Cài đặt** → **Cấu hình AI (Gemini)**
+2. Dán API key → **Lưu cấu hình AI** (lưu trong `gym_tracker.db` trên server, **không** lên GitHub)
+
+Hoặc dùng **Secrets** (admin, không qua UI):
 
 App → **Settings** → **Secrets**:
 

@@ -50,12 +50,32 @@ Trả lời đúng 2 phần với header chính xác:
 
 
 def get_ai_config() -> dict[str, str | None]:
-    """Read AI-related environment variables."""
-    base_url = os.getenv("AI_BASE_URL", "https://api.openai.com/v1")
+    """
+    AI config priority: saved in app DB (user entered on web) → .env / Streamlit Secrets.
+    Keys are never written to Git.
+    """
+    from src.app_settings import (
+        DEFAULT_GEMINI_BASE_URL,
+        DEFAULT_GEMINI_MODEL,
+        get_ai_credentials,
+    )
+
+    stored = get_ai_credentials()
+    api_key = (stored.get("api_key") or "").strip() or os.getenv("AI_API_KEY")
+    model = (
+        (stored.get("model") or "").strip()
+        or os.getenv("AI_MODEL")
+        or DEFAULT_GEMINI_MODEL
+    )
+    base_url = (
+        (stored.get("base_url") or "").strip()
+        or os.getenv("AI_BASE_URL")
+        or DEFAULT_GEMINI_BASE_URL
+    )
     return {
-        "api_key": os.getenv("AI_API_KEY"),
-        "model": os.getenv("AI_MODEL", "gpt-4o-mini"),
-        "base_url": base_url.strip() if base_url else "https://api.openai.com/v1",
+        "api_key": api_key,
+        "model": model,
+        "base_url": base_url.strip() if base_url else DEFAULT_GEMINI_BASE_URL,
     }
 
 

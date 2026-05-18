@@ -25,9 +25,14 @@ CHAT_SCOPE_KEY = "ai_chat_scope"
 def render_ai_not_configured() -> None:
     st.warning("Chưa cấu hình AI API key.")
     st.caption(
-        "Sao chép `.env.example` → `.env`, điền `AI_API_KEY`, `AI_MODEL` "
-        "và tùy chọn `AI_BASE_URL` (OpenAI-compatible)."
+        "Vào tab **Cài đặt** → **Cấu hình AI (Gemini)** để nhập key "
+        "(lưu trên server, không lên GitHub). "
+        "Hoặc dùng file `.env` khi chạy trên máy."
     )
+    from src.ai_settings_ui import render_ai_settings_panel
+
+    with st.expander("Nhập API key tại đây", expanded=True):
+        render_ai_settings_panel(compact=True)
 
 
 def render_ai_review_display(review: dict) -> None:
@@ -105,8 +110,13 @@ def render_ai_coach_tab(focus_session_id: int | None = None) -> None:
     """Full AI Coach tab content."""
     st.markdown("### AI Coach")
 
+    from src.ai_settings_ui import render_ai_settings_panel
+
+    with st.expander("⚙️ Cấu hình API Gemini", expanded=not is_ai_configured()):
+        render_ai_settings_panel(compact=True)
+
     if not is_ai_configured():
-        render_ai_not_configured()
+        st.caption("Nhập và **Lưu cấu hình AI** ở trên để bắt đầu.")
         return
 
     if st.button(
