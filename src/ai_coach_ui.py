@@ -29,10 +29,7 @@ def render_ai_not_configured() -> None:
         "(lưu trên server, không lên GitHub). "
         "Hoặc dùng file `.env` khi chạy trên máy."
     )
-    from src.ai_settings_ui import render_ai_settings_panel
-
-    with st.expander("Nhập API key tại đây", expanded=True):
-        render_ai_settings_panel(compact=True)
+    st.caption("Mở tab **AI Coach** hoặc **Cài đặt** → **Cấu hình AI** để nhập key.")
 
 
 def render_ai_review_display(review: dict) -> None:
@@ -113,7 +110,7 @@ def render_ai_coach_tab(focus_session_id: int | None = None) -> None:
     from src.ai_settings_ui import render_ai_settings_panel
 
     with st.expander("⚙️ Cấu hình API Gemini", expanded=not is_ai_configured()):
-        render_ai_settings_panel(compact=True)
+        render_ai_settings_panel(compact=True, form_key="ai_coach")
 
     if not is_ai_configured():
         st.caption("Nhập và **Lưu cấu hình AI** ở trên để bắt đầu.")

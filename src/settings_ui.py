@@ -25,7 +25,7 @@ def render_settings_tab() -> None:
     with st.expander("🔑 Cấu hình AI (Gemini)", expanded=False):
         from src.ai_settings_ui import render_ai_settings_panel
 
-        render_ai_settings_panel()
+        render_ai_settings_panel(form_key="settings")
 
     with st.expander("📋 Template buổi tập", expanded=False):
         _render_template_section()

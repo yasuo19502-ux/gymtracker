@@ -18,11 +18,14 @@ from src.app_settings import (
 )
 
 
-def render_ai_settings_panel(*, compact: bool = False) -> None:
+def render_ai_settings_panel(*, compact: bool = False, form_key: str = "settings") -> None:
     """
     Form: user enters Gemini API key; stored in SQLite on server/local only.
+
+    form_key must be unique per page (Streamlit renders all tabs at once).
     """
     summary = ai_credentials_summary()
+    form_id = f"ai_credentials_form_{form_key}"
 
     if not compact:
         st.markdown("**Cấu hình AI (Gemini)**")
@@ -39,7 +42,7 @@ def render_ai_settings_panel(*, compact: bool = False) -> None:
     else:
         st.info("Chưa có API key. Nhập bên dưới để dùng AI Coach.")
 
-    with st.form("ai_credentials_form", clear_on_submit=False):
+    with st.form(form_id, clear_on_submit=False):
         key_help = (
             "Để trống nếu giữ key đang lưu."
             if summary["configured"]
@@ -51,14 +54,17 @@ def render_ai_settings_panel(*, compact: bool = False) -> None:
             placeholder="AIza...",
             help=key_help,
             autocomplete="off",
+            key=f"{form_key}_api_key",
         )
         model = st.text_input(
             "Model",
             value=summary["model"] or DEFAULT_GEMINI_MODEL,
+            key=f"{form_key}_model",
         )
         base_url = st.text_input(
             "Base URL (OpenAI-compatible)",
             value=summary["base_url"] or DEFAULT_GEMINI_BASE_URL,
+            key=f"{form_key}_base_url",
         )
 
         c1, c2 = st.columns(2)
