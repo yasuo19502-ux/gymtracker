@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src import template_service as tpl_svc
+import src.template_service as tpl_svc
 from src.ai_coach import (
     AIAPIError,
     AIConfigError,
@@ -16,7 +16,7 @@ from src.ai_coach import (
     is_ai_configured,
     review_session_with_ai,
 )
-from src.session_summary_ui import AI_SESSION_FOCUS_KEY
+from src.ui_keys import AI_SESSION_FOCUS_KEY
 
 CHAT_HISTORY_KEY = "ai_chat_history"
 CHAT_SCOPE_KEY = "ai_chat_scope"

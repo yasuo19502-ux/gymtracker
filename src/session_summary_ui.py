@@ -8,9 +8,7 @@ from src.ai_coach import is_ai_configured
 from src.analytics import compare_with_previous_session, get_session_summary
 from src.overload_ui import render_recommendation
 
-VIEWING_SUMMARY_KEY = "viewing_session_summary_id"
-NAV_HINT_KEY = "nav_hint"
-AI_SESSION_FOCUS_KEY = "ai_session_focus_id"
+from src.ui_keys import AI_SESSION_FOCUS_KEY, NAV_HINT_KEY, VIEWING_SUMMARY_KEY
 
 
 def render_session_summary(session_id: int) -> None:

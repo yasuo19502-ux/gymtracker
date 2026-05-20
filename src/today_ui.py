@@ -7,18 +7,17 @@ from typing import Any
 
 import streamlit as st
 
-from src import template_service as tpl_svc
-from src import theme_service as theme_svc
-from src import workout_service as wkt_svc
+import src.template_service as tpl_svc
+import src.theme_service as theme_svc
+import src.workout_service as wkt_svc
 from src.overload_ui import render_plateau_alert, render_recommendation
-from src.session_summary_ui import VIEWING_SUMMARY_KEY, render_session_summary
+from src.session_summary_ui import render_session_summary
+from src.ui_keys import TODAY_TAB_CONTAINER_KEY, VIEWING_SUMMARY_KEY
 from src.workout_service import WorkoutValidationError
 
 SESSION_TEMPLATE_KEY = "selected_template_id"
 LAST_COMPLETED_SESSION_KEY = "last_completed_session_id"
 WORKOUT_ACTIVE_TEMPLATE_KEY = "workout_active_template_id"
-
-TODAY_TAB_CONTAINER_KEY = "today_theme_scope"
 
 
 def render_today_tab() -> None:

@@ -6,6 +6,7 @@ Run: streamlit run app.py
 from __future__ import annotations
 
 import sys
+import traceback
 from pathlib import Path
 
 import streamlit as st
@@ -26,22 +27,23 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
 
-    # Import sau set_page_config — ổn định hơn trên Streamlit Cloud (tránh lỗi import vòng).
-    from src.ai_coach_ui import render_ai_tab
-    from src.bootstrap import bootstrap_database, inject_styles
-    from src.calendar_ui import render_calendar_tab
-    from src.focus_mode import init_focus_state, is_focus_mode_active
-    from src.focus_ui import FOCUS_TAB_CONTAINER_KEY, render_focus_tab
-    from src.progress_ui import render_progress_tab
-    from src.session_summary_ui import NAV_HINT_KEY
-    from src.settings_ui import render_settings_tab
-    from src.today_ui import TODAY_TAB_CONTAINER_KEY, render_today_tab
-    from src.ui_keys import CALENDAR_TAB_CONTAINER_KEY
+    try:
+        from src.app_loader import load_app_modules
 
-    inject_styles()
+        mods = load_app_modules()
+    except Exception as exc:
+        st.error("Không tải được module ứng dụng (lỗi import). Chi tiết bên dưới:")
+        st.code(traceback.format_exc())
+        st.caption(
+            "Nếu deploy trên Streamlit Cloud: Reboot app sau khi push GitHub. "
+            "Chạy local: `python scripts/verify_deploy.py`"
+        )
+        st.stop()
+
+    mods.inject_styles()
 
     try:
-        if bootstrap_database():
+        if mods.bootstrap_database():
             st.session_state["db_seeded"] = True
     except Exception as exc:
         st.error(f"Không thể khởi tạo database: {exc}")
@@ -50,17 +52,15 @@ def main() -> None:
     if st.session_state.pop("db_seeded", False):
         st.toast("Đã tạo database và dữ liệu mẫu.", icon="✅")
 
-    init_focus_state()
-    if is_focus_mode_active():
-        from src.focus_ui import render_focus_mode_active_fullscreen
-
-        render_focus_mode_active_fullscreen()
+    mods.init_focus_state()
+    if mods.is_focus_mode_active():
+        mods.render_focus_mode_active_fullscreen()
         return
 
     st.markdown("# Gym Progress Tracker AI")
     st.caption("Theo dõi buổi tập gym — tối ưu cho điện thoại")
 
-    nav_hint = st.session_state.pop(NAV_HINT_KEY, None)
+    nav_hint = st.session_state.pop(mods.nav_hint_key, None)
     if nav_hint:
         st.info(f"👉 Mở tab **{nav_hint}** trên thanh tab phía trên.")
 
@@ -69,20 +69,20 @@ def main() -> None:
     )
 
     with tab_today:
-        with st.container(key=TODAY_TAB_CONTAINER_KEY):
-            render_today_tab()
+        with st.container(key=mods.today_tab_container_key):
+            mods.render_today_tab()
     with tab_focus:
-        with st.container(key=FOCUS_TAB_CONTAINER_KEY):
-            render_focus_tab()
+        with st.container(key=mods.focus_tab_container_key):
+            mods.render_focus_tab()
     with tab_calendar:
-        with st.container(key=CALENDAR_TAB_CONTAINER_KEY):
-            render_calendar_tab()
+        with st.container(key=mods.calendar_tab_container_key):
+            mods.render_calendar_tab()
     with tab_progress:
-        render_progress_tab()
+        mods.render_progress_tab()
     with tab_ai:
-        render_ai_tab()
+        mods.render_ai_tab()
     with tab_settings:
-        render_settings_tab()
+        mods.render_settings_tab()
 
 
 if __name__ == "__main__":

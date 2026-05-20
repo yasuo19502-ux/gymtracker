@@ -7,8 +7,8 @@ from typing import Any
 
 import streamlit as st
 
-from src import workout_service as wkt_svc
-from src.session_summary_ui import VIEWING_SUMMARY_KEY
+import src.workout_service as wkt_svc
+from src.ui_keys import VIEWING_SUMMARY_KEY
 from src.ui_keys import CALENDAR_SESSION_DETAIL_KEY, CALENDAR_SESSION_EDIT_KEY
 from src.workout_service import WorkoutValidationError
 SESSION_DELETE_CONFIRM_KEY = "session_delete_confirm_id"

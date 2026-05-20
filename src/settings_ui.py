@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src import template_service as svc
+import src.template_service as svc
 from src.template_service import ServiceError, ValidationError
 from src.theme_service import (
     PRESET_SELECT_ORDER,

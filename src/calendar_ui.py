@@ -10,16 +10,13 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from src import template_service as tpl_svc
-from src import workout_service as wkt_svc
+import src.template_service as tpl_svc
+import src.workout_service as wkt_svc
 from src.overload_ui import render_plateau_alert, render_recommendation
 from src.session_edit_ui import render_session_detail_view, render_session_edit
-from src.session_summary_ui import VIEWING_SUMMARY_KEY
-from src.theme_service import (
-    get_template_theme,
-    get_template_theme_from_row,
-)
-from src import theme_service as theme_svc
+from src.ui_keys import VIEWING_SUMMARY_KEY
+import src.theme_service as theme_svc
+from src.theme_service import get_template_theme, get_template_theme_from_row
 from src.ui_keys import (
     CALENDAR_BACKFILL_DRAFT_KEY,
     CALENDAR_BACKFILL_TEMPLATE_KEY,

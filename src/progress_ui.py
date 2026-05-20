@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 import plotly.graph_objects as go
 
-from src import template_service as tpl_svc
+import src.template_service as tpl_svc
 from src.analytics import (
     get_exercise_history,
     get_exercise_prs,

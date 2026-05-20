@@ -11,7 +11,7 @@ from typing import Any
 
 import streamlit as st
 
-from src import workout_service as wkt_svc
+import src.workout_service as wkt_svc
 from src.workout_service import WorkoutValidationError
 
 # Session state keys

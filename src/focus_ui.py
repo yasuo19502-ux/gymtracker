@@ -8,23 +8,23 @@ from typing import Any
 
 import streamlit as st
 
-from src import focus_mode as focus
-from src import template_service as tpl_svc
-from src import theme_service as theme_svc
-from src import workout_service as wkt_svc
+import src.focus_mode as focus
+import src.template_service as tpl_svc
+import src.theme_service as theme_svc
+import src.workout_service as wkt_svc
 from src.ai_coach import is_ai_configured
-from src.ui_keys import CALENDAR_SESSION_DETAIL_KEY
-from src.session_summary_ui import AI_SESSION_FOCUS_KEY, NAV_HINT_KEY
+from src.ui_keys import (
+    AI_SESSION_FOCUS_KEY,
+    CALENDAR_SESSION_DETAIL_KEY,
+    FOCUS_MAIN_CIRCLE_KEY,
+    FOCUS_TAB_CONTAINER_KEY,
+    NAV_HINT_KEY,
+)
 
 try:
     from streamlit_autorefresh import st_autorefresh
 except ImportError:
     st_autorefresh = None  # type: ignore[misc, assignment]
-
-FOCUS_MAIN_CIRCLE_KEY = "focus_main_circle_button"
-
-"""Khớp st.container(key=...) trong app.py — theme kế thừa xuống toàn bộ tab Focus."""
-FOCUS_TAB_CONTAINER_KEY = "focus_theme_scope"
 
 _JUMP_BLOCKED_MSG = "Hãy kết thúc hoặc hủy set hiện tại trước khi đổi bài."
 
