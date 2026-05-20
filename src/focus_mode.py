@@ -34,10 +34,28 @@ FOCUS_HISTORY_CACHE = "focus_history_cache"
 FOCUS_COMPLETED_STATS = "focus_completed_stats"
 FOCUS_LAST_SAVED_FLASH = "focus_last_saved_flash"
 FOCUS_BALLOONS_SHOWN = "focus_balloons_shown"
+FOCUS_EXERCISE_PROGRESS = "focus_exercise_progress"
+FOCUS_EXERCISE_PICKER_OPEN = "focus_exercise_picker_open"
 
 FOCUS_INPUT_DRAFT_PREFIX = "focus_input_draft"
 
 DEFAULT_REST_SECONDS = 180
+
+EXERCISE_STATUS_PENDING = "pending"
+EXERCISE_STATUS_IN_PROGRESS = "in_progress"
+EXERCISE_STATUS_COMPLETED = "completed"
+EXERCISE_STATUS_POSTPONED = "postponed"
+EXERCISE_STATUS_SKIPPED = "skipped"
+
+EXERCISE_STATUS_LABELS: dict[str, str] = {
+    EXERCISE_STATUS_PENDING: "Chưa tập",
+    EXERCISE_STATUS_IN_PROGRESS: "Đang tập dở",
+    EXERCISE_STATUS_COMPLETED: "Đã xong",
+    EXERCISE_STATUS_POSTPONED: "Để sau",
+    EXERCISE_STATUS_SKIPPED: "Đã bỏ",
+}
+
+_JUMP_BLOCKED_STATUSES = ("exercising", "input_set")
 
 _FOCUS_STATE_KEYS = (
     FOCUS_MODE_ACTIVE,
@@ -59,6 +77,8 @@ _FOCUS_STATE_KEYS = (
     FOCUS_COMPLETED_STATS,
     FOCUS_LAST_SAVED_FLASH,
     FOCUS_BALLOONS_SHOWN,
+    FOCUS_EXERCISE_PROGRESS,
+    FOCUS_EXERCISE_PICKER_OPEN,
 )
 
 
@@ -99,6 +119,13 @@ def init_focus_state() -> None:
     st.session_state.setdefault(FOCUS_COMPLETED_STATS, None)
     st.session_state.setdefault(FOCUS_LAST_SAVED_FLASH, None)
     st.session_state.setdefault(FOCUS_BALLOONS_SHOWN, False)
+    st.session_state.setdefault(FOCUS_EXERCISE_PROGRESS, {})
+    st.session_state.setdefault(FOCUS_EXERCISE_PICKER_OPEN, False)
+    if st.session_state.get(FOCUS_EXERCISES):
+        if not st.session_state.get(FOCUS_EXERCISE_PROGRESS):
+            init_exercise_progress()
+        else:
+            sync_all_exercise_progress()
 
 
 def _load_focus_exercises(template_id: int) -> list[dict[str, Any]]:
@@ -150,6 +177,231 @@ def start_focus_workout(template_id: int) -> None:
     st.session_state[FOCUS_SAVE_IN_PROGRESS] = False
     st.session_state[FOCUS_HISTORY_CACHE] = {}
     st.session_state[FOCUS_COMPLETED_STATS] = None
+    st.session_state[FOCUS_EXERCISE_PICKER_OPEN] = False
+    init_exercise_progress(exercises)
+
+
+def init_exercise_progress(exercises: list[dict[str, Any]] | None = None) -> None:
+    """Initialize per-exercise progress map for the current template."""
+    if exercises is None:
+        exercises = st.session_state.get(FOCUS_EXERCISES) or []
+    progress: dict[int, dict[str, Any]] = {}
+    for ex in exercises:
+        eid = int(ex["exercise_id"])
+        default_sets = int(ex.get("default_sets") or 3)
+        progress[eid] = {
+            "status": EXERCISE_STATUS_PENDING,
+            "completed_sets": 0,
+            "default_sets": default_sets,
+            "last_visited_at": None,
+        }
+    st.session_state[FOCUS_EXERCISE_PROGRESS] = progress
+    sync_all_exercise_progress()
+
+
+def get_exercise_progress() -> dict[int, dict[str, Any]]:
+    """Return exercise progress map (exercise_id -> progress dict)."""
+    return dict(st.session_state.get(FOCUS_EXERCISE_PROGRESS) or {})
+
+
+def get_exercise_progress_entry(exercise_id: int) -> dict[str, Any] | None:
+    return get_exercise_progress().get(int(exercise_id))
+
+
+def get_exercise_completed_sets(exercise_id: int) -> int:
+    """Count sets saved in focus_workout_data for this exercise."""
+    return len(get_today_sets_for_exercise(exercise_id))
+
+
+def _derive_exercise_status(
+    completed_sets: int,
+    default_sets: int,
+    *,
+    current_status: str,
+) -> str:
+    if current_status == EXERCISE_STATUS_SKIPPED:
+        return EXERCISE_STATUS_SKIPPED
+    if completed_sets <= 0:
+        if current_status == EXERCISE_STATUS_POSTPONED:
+            return EXERCISE_STATUS_POSTPONED
+        return EXERCISE_STATUS_PENDING
+    if completed_sets >= default_sets:
+        return EXERCISE_STATUS_COMPLETED
+    return EXERCISE_STATUS_IN_PROGRESS
+
+
+def update_exercise_progress(exercise_id: int) -> None:
+    """Refresh completed_sets and status from saved sets (keeps skipped)."""
+    progress = dict(st.session_state.get(FOCUS_EXERCISE_PROGRESS) or {})
+    eid = int(exercise_id)
+    entry = progress.get(eid)
+    if entry is None:
+        return
+    completed_sets = get_exercise_completed_sets(eid)
+    default_sets = int(entry.get("default_sets") or 3)
+    current_status = str(entry.get("status") or EXERCISE_STATUS_PENDING)
+    if current_status == EXERCISE_STATUS_COMPLETED and completed_sets >= default_sets:
+        new_status = EXERCISE_STATUS_COMPLETED
+    elif current_status == EXERCISE_STATUS_COMPLETED and completed_sets < default_sets:
+        new_status = EXERCISE_STATUS_IN_PROGRESS
+    else:
+        new_status = _derive_exercise_status(
+            completed_sets, default_sets, current_status=current_status
+        )
+    entry["completed_sets"] = completed_sets
+    entry["status"] = new_status
+    progress[eid] = entry
+    st.session_state[FOCUS_EXERCISE_PROGRESS] = progress
+
+
+def sync_all_exercise_progress() -> None:
+    """Sync every exercise in the template from focus_workout_data."""
+    for ex in st.session_state.get(FOCUS_EXERCISES) or []:
+        update_exercise_progress(int(ex["exercise_id"]))
+
+
+def get_exercise_status_label(status: str) -> str:
+    return EXERCISE_STATUS_LABELS.get(status, status)
+
+
+def get_next_set_number_for_exercise(exercise_id: int) -> int:
+    """Next set number = saved sets + 1 (supports extra sets beyond default)."""
+    return get_exercise_completed_sets(exercise_id) + 1
+
+
+def can_jump_exercise() -> bool:
+    return st.session_state.get(FOCUS_STATUS) not in _JUMP_BLOCKED_STATUSES
+
+
+def _find_exercise_index(exercise_id: int) -> int | None:
+    for i, ex in enumerate(st.session_state.get(FOCUS_EXERCISES) or []):
+        if int(ex["exercise_id"]) == int(exercise_id):
+            return i
+    return None
+
+
+def _find_next_exercise_index(*, after_index: int = -1) -> int | None:
+    """Next template exercise that is pending or postponed."""
+    exercises = st.session_state.get(FOCUS_EXERCISES) or []
+    progress = get_exercise_progress()
+    for i, ex in enumerate(exercises):
+        if i <= after_index:
+            continue
+        eid = int(ex["exercise_id"])
+        entry = progress.get(eid) or {}
+        if entry.get("status") in (EXERCISE_STATUS_PENDING, EXERCISE_STATUS_POSTPONED):
+            return i
+    return None
+
+
+def _clear_rest_timer_state() -> None:
+    st.session_state[FOCUS_REST_STARTED_AT] = None
+    st.session_state[FOCUS_SET_STARTED_AT] = None
+
+
+def _record_rest_if_active() -> None:
+    if st.session_state.get(FOCUS_STATUS) in ("resting", "rest_timeout"):
+        if st.session_state.get(FOCUS_REST_STARTED_AT):
+            _record_actual_rest_on_last_set(_get_rest_elapsed_seconds())
+
+
+def _maybe_postpone_exercise(exercise_id: int) -> None:
+    """Mark exercise as postponed when leaving mid-workout."""
+    progress = dict(st.session_state.get(FOCUS_EXERCISE_PROGRESS) or {})
+    eid = int(exercise_id)
+    entry = progress.get(eid)
+    if not entry:
+        return
+    if entry.get("status") in (EXERCISE_STATUS_COMPLETED, EXERCISE_STATUS_SKIPPED):
+        return
+    completed = get_exercise_completed_sets(eid)
+    default_sets = int(entry.get("default_sets") or 3)
+    entry["completed_sets"] = completed
+    if 0 < completed < default_sets:
+        entry["status"] = EXERCISE_STATUS_POSTPONED
+    progress[eid] = entry
+    st.session_state[FOCUS_EXERCISE_PROGRESS] = progress
+
+
+def _apply_jump_to_index(target_index: int) -> None:
+    """Switch current exercise without postponing logic (internal)."""
+    exercises = st.session_state.get(FOCUS_EXERCISES) or []
+    if target_index < 0 or target_index >= len(exercises):
+        return
+    ex = exercises[target_index]
+    eid = int(ex["exercise_id"])
+    st.session_state[FOCUS_CURRENT_EXERCISE_INDEX] = target_index
+    st.session_state[FOCUS_CURRENT_SET_NUMBER] = get_next_set_number_for_exercise(eid)
+    st.session_state[FOCUS_STATUS] = "ready"
+    _clear_rest_timer_state()
+    st.session_state[FOCUS_REST_SECONDS] = int(ex.get("rest_seconds") or DEFAULT_REST_SECONDS)
+
+    progress = dict(st.session_state.get(FOCUS_EXERCISE_PROGRESS) or {})
+    entry = progress.get(eid)
+    if entry:
+        entry["last_visited_at"] = _now_iso()
+        progress[eid] = entry
+        st.session_state[FOCUS_EXERCISE_PROGRESS] = progress
+    update_exercise_progress(eid)
+
+
+def jump_to_exercise(exercise_id: int) -> str | None:
+    """
+    Jump to an exercise in the current template.
+    Returns an error message, or None on success.
+    """
+    if not can_jump_exercise():
+        return "Hãy kết thúc hoặc hủy set hiện tại trước khi đổi bài."
+
+    _record_rest_if_active()
+
+    target_index = _find_exercise_index(exercise_id)
+    if target_index is None:
+        return "Không tìm thấy bài trong template."
+
+    current = get_current_focus_exercise()
+    if current is not None:
+        cur_eid = int(current["exercise_id"])
+        if cur_eid != int(exercise_id):
+            _maybe_postpone_exercise(cur_eid)
+
+    _apply_jump_to_index(target_index)
+    st.session_state[FOCUS_EXERCISE_PICKER_OPEN] = False
+    return None
+
+
+def mark_current_exercise_postponed() -> None:
+    """Mark current exercise as postponed (e.g. equipment busy)."""
+    exercise = get_current_focus_exercise()
+    if exercise is None:
+        return
+    _record_rest_if_active()
+    eid = int(exercise["exercise_id"])
+    progress = dict(st.session_state.get(FOCUS_EXERCISE_PROGRESS) or {})
+    entry = progress.get(eid) or {}
+    entry["status"] = EXERCISE_STATUS_POSTPONED
+    entry["completed_sets"] = get_exercise_completed_sets(eid)
+    entry["default_sets"] = int(
+        entry.get("default_sets") or exercise.get("default_sets") or 3
+    )
+    progress[eid] = entry
+    st.session_state[FOCUS_EXERCISE_PROGRESS] = progress
+    st.session_state[FOCUS_EXERCISE_PICKER_OPEN] = True
+
+
+def mark_current_exercise_skipped() -> None:
+    """Mark current exercise skipped; keeps any sets already logged."""
+    exercise = get_current_focus_exercise()
+    if exercise is None:
+        return
+    _record_rest_if_active()
+    eid = int(exercise["exercise_id"])
+    progress = dict(st.session_state.get(FOCUS_EXERCISE_PROGRESS) or {})
+    entry = progress.get(eid) or {}
+    entry["status"] = EXERCISE_STATUS_SKIPPED
+    entry["completed_sets"] = get_exercise_completed_sets(eid)
+    progress[eid] = entry
+    st.session_state[FOCUS_EXERCISE_PROGRESS] = progress
 
 
 def get_current_focus_exercise() -> dict[str, Any] | None:
@@ -358,6 +610,7 @@ def save_current_set(
     st.session_state[FOCUS_STATUS] = "resting"
     st.session_state[FOCUS_REST_STARTED_AT] = _now_iso()
     st.session_state[FOCUS_REST_SECONDS] = rest_seconds
+    update_exercise_progress(exercise_id)
     return []
 
 
@@ -453,23 +706,32 @@ def start_next_set() -> None:
     st.session_state[FOCUS_REST_STARTED_AT] = None
 
 
+def _mark_exercise_completed(exercise_id: int) -> None:
+    progress = dict(st.session_state.get(FOCUS_EXERCISE_PROGRESS) or {})
+    eid = int(exercise_id)
+    entry = progress.get(eid) or {}
+    entry["status"] = EXERCISE_STATUS_COMPLETED
+    entry["completed_sets"] = get_exercise_completed_sets(eid)
+    progress[eid] = entry
+    st.session_state[FOCUS_EXERCISE_PROGRESS] = progress
+
+
 def finish_current_exercise() -> None:
-    exercises = st.session_state.get(FOCUS_EXERCISES) or []
+    """Mark current exercise done and jump to next pending/postponed, or end workout."""
+    exercise = get_current_focus_exercise()
     idx = int(st.session_state.get(FOCUS_CURRENT_EXERCISE_INDEX) or 0)
 
-    if st.session_state.get(FOCUS_STATUS) in ("resting", "rest_timeout"):
-        if st.session_state.get(FOCUS_REST_STARTED_AT):
-            _record_actual_rest_on_last_set(_get_rest_elapsed_seconds())
+    _record_rest_if_active()
 
-    if idx + 1 < len(exercises):
-        st.session_state[FOCUS_CURRENT_EXERCISE_INDEX] = idx + 1
-        st.session_state[FOCUS_CURRENT_SET_NUMBER] = 1
-        st.session_state[FOCUS_STATUS] = "ready"
-        st.session_state[FOCUS_SET_STARTED_AT] = None
-        st.session_state[FOCUS_REST_STARTED_AT] = None
+    if exercise is not None:
+        _mark_exercise_completed(int(exercise["exercise_id"]))
+
+    next_idx = _find_next_exercise_index(after_index=idx)
+    if next_idx is not None:
+        _apply_jump_to_index(next_idx)
     else:
         st.session_state[FOCUS_STATUS] = "completed_ready_to_save"
-        st.session_state[FOCUS_REST_STARTED_AT] = None
+        _clear_rest_timer_state()
 
 
 def prepare_end_workout() -> None:
@@ -479,21 +741,27 @@ def prepare_end_workout() -> None:
 
 
 def go_to_next_exercise() -> None:
-    exercises = st.session_state.get(FOCUS_EXERCISES) or []
+    """Skip ahead: postpone current if partial, then next pending/postponed in template."""
+    exercise = get_current_focus_exercise()
     idx = int(st.session_state.get(FOCUS_CURRENT_EXERCISE_INDEX) or 0)
 
-    if st.session_state.get(FOCUS_STATUS) in ("resting", "rest_timeout"):
-        if st.session_state.get(FOCUS_REST_STARTED_AT):
-            _record_actual_rest_on_last_set(_get_rest_elapsed_seconds())
+    _record_rest_if_active()
 
-    if idx + 1 < len(exercises):
-        st.session_state[FOCUS_CURRENT_EXERCISE_INDEX] = idx + 1
-        st.session_state[FOCUS_CURRENT_SET_NUMBER] = 1
-        st.session_state[FOCUS_STATUS] = "ready"
-        st.session_state[FOCUS_SET_STARTED_AT] = None
-        st.session_state[FOCUS_REST_STARTED_AT] = None
+    if exercise is not None:
+        eid = int(exercise["exercise_id"])
+        completed = get_exercise_completed_sets(eid)
+        default_sets = int(exercise.get("default_sets") or 3)
+        if completed >= default_sets:
+            _mark_exercise_completed(eid)
+        else:
+            _maybe_postpone_exercise(eid)
+
+    next_idx = _find_next_exercise_index(after_index=idx)
+    if next_idx is not None:
+        _apply_jump_to_index(next_idx)
     else:
         st.session_state[FOCUS_STATUS] = "completed_ready_to_save"
+        _clear_rest_timer_state()
 
 
 def _count_saved_sets() -> int:

@@ -1198,7 +1198,6 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 }
 
 .focus-compact-header {
-    max-height: 72px;
     margin-bottom: 0.35rem;
     padding: 0 0 0.25rem;
 }
@@ -1225,11 +1224,45 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 }
 
 .focus-compact-ex-name {
-    font-size: 1.05rem;
+    font-size: 1.2rem;
     font-weight: 800;
     margin: 0 0 0.1rem;
     line-height: 1.15;
     color: #f8fafc;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.focus-ex-picker-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 0.4rem 0.55rem;
+    margin-bottom: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.focus-ex-picker-card.focus-ex-picker-current {
+    border-color: rgba(99, 102, 241, 0.65);
+    background: rgba(99, 102, 241, 0.12);
+}
+
+.focus-ex-picker-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.2;
+}
+
+.focus-ex-picker-meta {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #94a3b8;
 }
 
 .focus-compact-meta {
@@ -1251,6 +1284,21 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     background: linear-gradient(90deg, #6366f1, #a855f7);
 }
 
+.st-key-focus_open_picker {
+    margin-top: 0.05rem;
+}
+
+.st-key-focus_open_picker .stButton > button {
+    min-height: 34px !important;
+    max-height: 36px !important;
+    padding: 0.2rem 0.35rem !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    border: 1px solid rgba(99, 102, 241, 0.5) !important;
+    background: rgba(99, 102, 241, 0.2) !important;
+    white-space: nowrap;
+}
+
 .focus-quick-strip {
     max-height: 70px;
     margin: 0.2rem 0 0.35rem;
@@ -1267,6 +1315,12 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button button p {
+    font-size: 12px !important;
+    line-height: 1.22 !important;
+    white-space: pre-line;
 }
 
 .focus-compact-shell .st-key-focus_main_circle_button {

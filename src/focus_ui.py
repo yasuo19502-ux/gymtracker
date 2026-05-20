@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 from datetime import date
+from typing import Any
 
 import streamlit as st
 
@@ -19,6 +20,8 @@ except ImportError:
     st_autorefresh = None  # type: ignore[misc, assignment]
 
 FOCUS_MAIN_CIRCLE_KEY = "focus_main_circle_button"
+
+_JUMP_BLOCKED_MSG = "Hãy kết thúc hoặc hủy set hiện tại trước khi đổi bài."
 
 _MICROCOPY = {
     "ready": "Sẵn sàng cho set này?",
@@ -108,14 +111,29 @@ def _inject_main_circle_css(state: str) -> None:
     )
 
 
+def _short_exercise_name(exercise: dict[str, Any] | None, *, max_len: int = 14) -> str:
+    if not exercise:
+        return ""
+    name = str(exercise.get("exercise_name") or "").strip().upper()
+    if len(name) <= max_len:
+        return name
+    return name[: max_len - 1] + "…"
+
+
 def _main_circle_label(status: str, *, compact: bool = False) -> str | None:
     if status == "ready":
         return "START\nSẵn sàng" if compact else f"START\n{_MICROCOPY['ready']}"
     if status == "exercising":
         elapsed = focus.get_set_elapsed_seconds()
         timer = f"{elapsed // 60:02d}:{elapsed % 60:02d}"
+        ex = focus.get_current_focus_exercise()
+        short = _short_exercise_name(ex, max_len=12 if compact else 16)
         if compact:
+            if short:
+                return f"{short}\nĐANG TẬP\n{timer}"
             return f"ĐANG TẬP\n{timer}"
+        if short:
+            return f"{short}\nĐANG TẬP...\n{timer}"
         return f"ĐANG TẬP...\n{timer}\n{_MICROCOPY['exercising']}"
     if status == "resting":
         remaining = focus.get_rest_remaining_seconds()
@@ -253,11 +271,14 @@ def _render_compact_header(
     total_exercises: int,
     set_num: int,
     default_sets: int,
+    status: str = "ready",
 ) -> None:
     rep_min = int(exercise.get("target_rep_min") or 8)
     rep_max = int(exercise.get("target_rep_max") or 12)
     rest_sec = int(exercise.get("rest_seconds") or focus.DEFAULT_REST_SECONDS)
-    ex_name = exercise.get("exercise_name") or "—"
+    ex_name = str(exercise.get("exercise_name") or "—")
+    ex_name_display = ex_name.upper()
+    ex_title_attr = f' title="{_esc(ex_name)}"' if ex_name else ""
 
     if set_num > default_sets:
         set_part = f"Set {set_num}/{default_sets}+"
@@ -265,7 +286,7 @@ def _render_compact_header(
         set_part = f"Set {set_num}/{default_sets}"
 
     meta_line = (
-        f"{set_part} · {rep_min}–{rep_max} reps · "
+        f"{set_part} · Mục tiêu {rep_min}–{rep_max} reps · "
         f"Nghỉ {focus.format_rest_mmss(rest_sec)}"
     )
 
@@ -276,7 +297,28 @@ def _render_compact_header(
         f'<span class="focus-compact-ex-count">Bài {ex_idx + 1}/{total_exercises}</span>'
         f"</div>"
     )
-    _html(f'<h1 class="focus-compact-ex-name">{_esc(ex_name)}</h1>')
+    show_swap = status not in ("completed", "completed_ready_to_save", "idle")
+    if show_swap:
+        name_col, btn_col = st.columns([5, 1.35], gap="small")
+        with name_col:
+            _html(
+                f'<h1 class="focus-compact-ex-name"{ex_title_attr}>'
+                f"{_esc(ex_name_display)}</h1>"
+            )
+        with btn_col:
+            if st.button("Đổi bài", key="focus_open_picker", use_container_width=True):
+                if focus.can_jump_exercise():
+                    st.session_state[focus.FOCUS_EXERCISE_PICKER_OPEN] = True
+                    st.rerun()
+                else:
+                    st.session_state["focus_jump_error"] = _JUMP_BLOCKED_MSG
+                    st.rerun()
+    else:
+        _html(
+            f'<h1 class="focus-compact-ex-name"{ex_title_attr}>'
+            f"{_esc(ex_name_display)}</h1>"
+        )
+
     _html(f'<p class="focus-compact-meta">{_esc(meta_line)}</p>')
     workout_pct = ((ex_idx + 1) / max(total_exercises, 1)) * 100
     _compact_progress_bar(workout_pct)
@@ -305,6 +347,64 @@ def _render_quick_info_strip(exercise_id: int) -> None:
     _html(f'<p class="focus-quick-line">{_esc(prev_line)}</p>')
     _html(f'<p class="focus-quick-line">{_esc(today_line)}</p>')
     _html("</div>")
+
+
+def _render_jump_hints_and_picker(status: str) -> None:
+    """Cảnh báo + danh sách chọn bài (nút Đổi bài nằm trên header)."""
+    if status in ("completed", "completed_ready_to_save", "idle"):
+        return
+
+    jump_err = st.session_state.pop("focus_jump_error", None)
+    if jump_err:
+        st.warning(jump_err)
+
+    can_jump = focus.can_jump_exercise()
+    if status in ("exercising", "input_set") and not can_jump:
+        st.caption("Để đổi bài: bấm vòng tròn kết thúc set (hoặc Hủy nhập set).")
+
+    if can_jump and st.session_state.get(focus.FOCUS_EXERCISE_PICKER_OPEN):
+        _render_exercise_picker()
+
+
+def _render_exercise_picker() -> None:
+    """Compact list of template exercises for jump navigation."""
+    exercises = st.session_state.get(focus.FOCUS_EXERCISES) or []
+    current = focus.get_current_focus_exercise()
+    cur_eid = int(current["exercise_id"]) if current else None
+
+    with st.expander("Chọn bài tập", expanded=True):
+        if st.button("Đóng danh sách", use_container_width=True, key="focus_close_picker"):
+            st.session_state[focus.FOCUS_EXERCISE_PICKER_OPEN] = False
+            st.rerun()
+
+        for ex in exercises:
+            eid = int(ex["exercise_id"])
+            name = str(ex.get("exercise_name") or "—")
+            default_sets = int(ex.get("default_sets") or 3)
+            entry = focus.get_exercise_progress_entry(eid) or {}
+            completed = int(
+                entry.get("completed_sets") or focus.get_exercise_completed_sets(eid)
+            )
+            status_key = str(entry.get("status") or focus.EXERCISE_STATUS_PENDING)
+            status_label = focus.get_exercise_status_label(status_key)
+            current_cls = " focus-ex-picker-current" if eid == cur_eid else ""
+
+            _html(
+                f'<div class="focus-ex-picker-card{current_cls}">'
+                f'<span class="focus-ex-picker-name">{_esc(name)}</span>'
+                f'<span class="focus-ex-picker-meta">{completed}/{default_sets} set · '
+                f"{_esc(status_label)}</span>"
+                f"</div>"
+            )
+            if st.button(
+                "Chọn",
+                key=f"focus_pick_ex_{eid}",
+                use_container_width=True,
+            ):
+                err = focus.jump_to_exercise(eid)
+                if err:
+                    st.session_state["focus_jump_error"] = err
+                st.rerun()
 
 
 def _render_compact_rest_actions() -> None:
@@ -369,10 +469,6 @@ def _render_live_compact() -> None:
     default_sets = int(exercise.get("default_sets") or 3)
     eid = int(exercise["exercise_id"])
 
-    if status == "input_set":
-        _render_set_input_form(compact=True)
-        return
-
     _render_compact_header(
         template_name,
         exercise,
@@ -380,7 +476,13 @@ def _render_live_compact() -> None:
         total_exercises=len(exercises),
         set_num=set_num,
         default_sets=default_sets,
+        status=status,
     )
+    _render_jump_hints_and_picker(status)
+
+    if status == "input_set":
+        _render_set_input_form(compact=True)
+        return
 
     if status in ("ready", "exercising", "resting", "rest_timeout"):
         _render_main_circle_button(compact=True)
@@ -1065,7 +1167,7 @@ def _render_completed_screen() -> None:
     if st.button("Reset Focus Mode", use_container_width=True, key="focus_reset_completed"):
         focus.reset_focus_mode()
         st.rerun()
-    _html("</div></motion>")
+    _html("</div>")
 
 
 __all__ = ["render_focus_tab", "render_focus_mode_active_fullscreen"]

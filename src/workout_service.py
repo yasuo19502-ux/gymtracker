@@ -570,13 +570,33 @@ def save_focus_workout_session(
     Persist a Focus Mode workout (same tables as form entry).
     focus_data: exercise_id -> list of set dicts from focus_workout_data.
     """
+    plan = get_template_workout_plan(template_id)
+    exercises_df = plan.get("exercises")
+    ordered_ids: list[int] = []
+    if exercises_df is not None and not exercises_df.empty:
+        ordered_ids = [int(row.exercise_id) for row in exercises_df.itertuples(index=False)]
+
+    seen: set[int] = set()
     exercises_payload: list[dict[str, Any]] = []
-    for exercise_id, sets_list in focus_data.items():
+    for exercise_id in ordered_ids:
+        sets_list = focus_data.get(exercise_id) or focus_data.get(int(exercise_id))
         if not sets_list:
             continue
+        seen.add(int(exercise_id))
         exercises_payload.append(
             {
                 "exercise_id": int(exercise_id),
+                "skipped": False,
+                "sets": sets_list,
+            }
+        )
+    for exercise_id, sets_list in focus_data.items():
+        eid = int(exercise_id)
+        if eid in seen or not sets_list:
+            continue
+        exercises_payload.append(
+            {
+                "exercise_id": eid,
                 "skipped": False,
                 "sets": sets_list,
             }
