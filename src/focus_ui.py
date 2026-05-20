@@ -306,9 +306,11 @@ def _render_compact_header(
                 f"{_esc(ex_name_display)}</h1>"
             )
         with btn_col:
-            if st.button("Đổi bài", key="focus_open_picker", use_container_width=True):
+            picker_open = bool(st.session_state.get(focus.FOCUS_EXERCISE_PICKER_OPEN))
+            btn_label = "Thu lại" if picker_open and focus.can_jump_exercise() else "Đổi bài"
+            if st.button(btn_label, key="focus_open_picker", use_container_width=True):
                 if focus.can_jump_exercise():
-                    st.session_state[focus.FOCUS_EXERCISE_PICKER_OPEN] = True
+                    st.session_state[focus.FOCUS_EXERCISE_PICKER_OPEN] = not picker_open
                     st.rerun()
                 else:
                     st.session_state["focus_jump_error"] = _JUMP_BLOCKED_MSG
@@ -372,39 +374,39 @@ def _render_exercise_picker() -> None:
     current = focus.get_current_focus_exercise()
     cur_eid = int(current["exercise_id"]) if current else None
 
-    with st.expander("Chọn bài tập", expanded=True):
-        if st.button("Đóng danh sách", use_container_width=True, key="focus_close_picker"):
-            st.session_state[focus.FOCUS_EXERCISE_PICKER_OPEN] = False
+    st.markdown('<div class="focus-ex-picker-panel">', unsafe_allow_html=True)
+    st.caption("Chọn bài tập")
+
+    for ex in exercises:
+        eid = int(ex["exercise_id"])
+        name = str(ex.get("exercise_name") or "—")
+        default_sets = int(ex.get("default_sets") or 3)
+        entry = focus.get_exercise_progress_entry(eid) or {}
+        completed = int(
+            entry.get("completed_sets") or focus.get_exercise_completed_sets(eid)
+        )
+        status_key = str(entry.get("status") or focus.EXERCISE_STATUS_PENDING)
+        status_label = focus.get_exercise_status_label(status_key)
+        current_cls = " focus-ex-picker-current" if eid == cur_eid else ""
+
+        _html(
+            f'<div class="focus-ex-picker-card{current_cls}">'
+            f'<span class="focus-ex-picker-name">{_esc(name)}</span>'
+            f'<span class="focus-ex-picker-meta">{completed}/{default_sets} set · '
+            f"{_esc(status_label)}</span>"
+            f"</div>"
+        )
+        if st.button(
+            "Chọn",
+            key=f"focus_pick_ex_{eid}",
+            use_container_width=True,
+        ):
+            err = focus.jump_to_exercise(eid)
+            if err:
+                st.session_state["focus_jump_error"] = err
             st.rerun()
 
-        for ex in exercises:
-            eid = int(ex["exercise_id"])
-            name = str(ex.get("exercise_name") or "—")
-            default_sets = int(ex.get("default_sets") or 3)
-            entry = focus.get_exercise_progress_entry(eid) or {}
-            completed = int(
-                entry.get("completed_sets") or focus.get_exercise_completed_sets(eid)
-            )
-            status_key = str(entry.get("status") or focus.EXERCISE_STATUS_PENDING)
-            status_label = focus.get_exercise_status_label(status_key)
-            current_cls = " focus-ex-picker-current" if eid == cur_eid else ""
-
-            _html(
-                f'<div class="focus-ex-picker-card{current_cls}">'
-                f'<span class="focus-ex-picker-name">{_esc(name)}</span>'
-                f'<span class="focus-ex-picker-meta">{completed}/{default_sets} set · '
-                f"{_esc(status_label)}</span>"
-                f"</div>"
-            )
-            if st.button(
-                "Chọn",
-                key=f"focus_pick_ex_{eid}",
-                use_container_width=True,
-            ):
-                err = focus.jump_to_exercise(eid)
-                if err:
-                    st.session_state["focus_jump_error"] = err
-                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_compact_rest_actions() -> None:

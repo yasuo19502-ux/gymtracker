@@ -4,29 +4,29 @@ from __future__ import annotations
 
 import calendar as cal
 import html
-from datetime import date, datetime
+from datetime import date
 from typing import Any
-from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
 
+from src import template_service as tpl_svc
 from src import workout_service as wkt_svc
+from src.overload_ui import render_plateau_alert, render_recommendation
 from src.session_edit_ui import (
     CALENDAR_SESSION_EDIT_KEY,
     render_session_detail_view,
     render_session_edit,
 )
 from src.session_summary_ui import VIEWING_SUMMARY_KEY
+from src.workout_service import WorkoutValidationError
 
 CALENDAR_YEAR_KEY = "calendar_year"
 CALENDAR_MONTH_KEY = "calendar_month"
 CALENDAR_SELECTED_DATE_KEY = "calendar_selected_date"
 CALENDAR_SESSION_DETAIL_KEY = "calendar_session_detail_id"
-
-QP_YEAR = "calendar_year"
-QP_MONTH = "calendar_month"
-QP_DATE = "calendar_date"
+CALENDAR_BACKFILL_TEMPLATE_KEY = "calendar_backfill_template_id"
+CALENDAR_BACKFILL_DRAFT_KEY = "calendar_backfill_draft_key"
 
 WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 
@@ -35,50 +35,11 @@ def _esc(text: str) -> str:
     return html.escape(str(text))
 
 
-def _apply_calendar_query_params() -> None:
-    """Sync month/year/selected day from URL query params."""
-    qp = st.query_params
-    if QP_YEAR in qp:
-        try:
-            st.session_state[CALENDAR_YEAR_KEY] = int(qp[QP_YEAR])
-        except (TypeError, ValueError):
-            pass
-    if QP_MONTH in qp:
-        try:
-            m = int(qp[QP_MONTH])
-            if 1 <= m <= 12:
-                st.session_state[CALENDAR_MONTH_KEY] = m
-        except (TypeError, ValueError):
-            pass
-    if QP_DATE in qp:
-        st.session_state[CALENDAR_SELECTED_DATE_KEY] = str(qp[QP_DATE])
-
-
-def _sync_calendar_query_params(year: int, month: int, selected_date: str | None) -> None:
-    """Keep URL in sync for shareable links and day clicks."""
-    params: dict[str, str] = {
-        QP_YEAR: str(year),
-        QP_MONTH: str(month),
-    }
-    if selected_date:
-        params[QP_DATE] = selected_date
-    current = {k: str(v) for k, v in st.query_params.items()}
-    if current == params:
-        return
-    st.query_params.clear()
-    for key, value in params.items():
-        st.query_params[key] = value
-
-
-def _day_href(year: int, month: int, date_str: str) -> str:
-    q = urlencode(
-        {
-            QP_YEAR: str(year),
-            QP_MONTH: str(month),
-            QP_DATE: date_str,
-        }
-    )
-    return f"?{q}"
+def _parse_iso_date(date_str: str) -> date | None:
+    try:
+        return date.fromisoformat(str(date_str))
+    except ValueError:
+        return None
 
 
 def render_calendar_tab() -> None:
@@ -92,8 +53,6 @@ def render_calendar_tab() -> None:
     if detail_session:
         render_session_detail_view(int(detail_session))
         return
-
-    _apply_calendar_query_params()
 
     today = date.today()
     st.session_state.setdefault(CALENDAR_MONTH_KEY, today.month)
@@ -129,30 +88,21 @@ def render_calendar_tab() -> None:
 
     selected = st.session_state.get(CALENDAR_SELECTED_DATE_KEY)
     if selected:
-        try:
-            sd = date.fromisoformat(str(selected))
-            if sd.year != year_int or sd.month != month_int:
-                st.session_state.pop(CALENDAR_SELECTED_DATE_KEY, None)
-                selected = None
-        except ValueError:
+        sd = _parse_iso_date(str(selected))
+        if sd is None or sd.year != year_int or sd.month != month_int:
             st.session_state.pop(CALENDAR_SELECTED_DATE_KEY, None)
             selected = None
-
-    _sync_calendar_query_params(year_int, month_int, selected)
 
     sessions = wkt_svc.get_sessions_by_month(year_int, month_int)
     day_map = _build_day_map(sessions)
 
     render_month_summary(year_int, month_int, sessions)
-    st.markdown(
-        render_calendar_grid_html(
-            year_int,
-            month_int,
-            day_map,
-            selected_date=selected,
-            today=today,
-        ),
-        unsafe_allow_html=True,
+    render_calendar_grid_widget(
+        year_int,
+        month_int,
+        day_map,
+        selected_date=selected,
+        today=today,
     )
 
     if selected:
@@ -221,7 +171,6 @@ def _build_day_map(sessions: pd.DataFrame) -> dict[str, list[dict[str, Any]]]:
 
 
 def _short_template_label(name: str, max_len: int = 6) -> str:
-    """Abbreviate template name for calendar cell badge."""
     text = (name or "").strip()
     if not text:
         return "?"
@@ -241,7 +190,6 @@ def _badge_for_day(day_sessions: list[dict[str, Any]]) -> str:
 
 
 def _calendar_weeks(year: int, month: int) -> list[list[dict[str, Any] | None]]:
-    """Build grid rows (Mon–Sun) with cell metadata."""
     weeks: list[list[dict[str, Any] | None]] = []
     for week in cal.monthcalendar(year, month):
         row: list[dict[str, Any] | None] = []
@@ -254,71 +202,85 @@ def _calendar_weeks(year: int, month: int) -> list[list[dict[str, Any] | None]]:
     return weeks
 
 
-def render_calendar_grid_html(
+def render_calendar_weekday_header_html() -> str:
+    parts = ['<div class="calendar-grid calendar-weekdays">']
+    for label in WEEKDAY_LABELS:
+        parts.append(f'<div class="calendar-weekday">{_esc(label)}</div>')
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def render_calendar_grid_widget(
     year: int,
     month: int,
     day_map: dict[str, list[dict[str, Any]]],
     *,
     selected_date: str | None,
     today: date | None = None,
-) -> str:
-    """7-column month calendar as HTML/CSS grid (mobile-safe)."""
+) -> None:
+    """Lưới tháng: nút Streamlit (không dùng link) + CSS ép 7 cột trên mobile."""
     today = today or date.today()
     weeks = _calendar_weeks(year, month)
-    parts: list[str] = ['<div class="calendar-grid calendar-weekdays">']
-    for label in WEEKDAY_LABELS:
-        parts.append(f'<div class="calendar-weekday">{_esc(label)}</div>')
-    parts.append("</div>")
 
-    parts.append('<div class="calendar-grid calendar-days">')
+    st.markdown(
+        render_calendar_weekday_header_html(),
+        unsafe_allow_html=True,
+    )
+
     for week in weeks:
-        for cell in week:
-            if cell is None:
-                parts.append('<div class="calendar-day-cell calendar-day-cell--empty"></div>')
-                continue
+        cols = st.columns(7, gap="small")
+        for col, cell in zip(cols, week, strict=False):
+            with col:
+                if cell is None:
+                    st.markdown(
+                        '<div class="calendar-day-spacer" aria-hidden="true">&nbsp;</div>',
+                        unsafe_allow_html=True,
+                    )
+                    continue
 
-            day_num = int(cell["day"])
-            date_str = f"{year:04d}-{month:02d}-{day_num:02d}"
-            day_sessions = day_map.get(date_str, [])
-            badge = _badge_for_day(day_sessions)
+                day_num = int(cell["day"])
+                date_str = f"{year:04d}-{month:02d}-{day_num:02d}"
+                day_sessions = day_map.get(date_str, [])
+                badge = _badge_for_day(day_sessions)
+                is_today = (
+                    today.year == year
+                    and today.month == month
+                    and today.day == day_num
+                )
+                is_selected = selected_date == date_str
 
-            classes = ["calendar-day-cell"]
-            if day_sessions:
-                classes.append("has-workout")
-            if (
-                today.year == year
-                and today.month == month
-                and today.day == day_num
-            ):
-                classes.append("today")
-            if selected_date == date_str:
-                classes.append("selected")
+                if badge:
+                    label = f"{day_num}\n{badge}"
+                elif is_today and not is_selected:
+                    label = f"{day_num}\n·"
+                else:
+                    label = str(day_num)
 
-            class_attr = " ".join(classes)
-            href = _day_href(year, month, date_str)
-            badge_html = (
-                f'<span class="calendar-workout-badge">{_esc(badge)}</span>'
-                if badge
-                else ""
-            )
-            parts.append(
-                f'<a href="{href}" class="{class_attr}" title="{_esc(date_str)}">'
-                f'<span class="calendar-day-number">{day_num}</span>'
-                f"{badge_html}"
-                f"</a>"
-            )
-    parts.append("</div>")
-    return "".join(parts)
+                btn_type: str = "primary" if is_selected else "secondary"
+                help_txt = date_str
+                if is_today:
+                    help_txt += " · Hôm nay"
+                if day_sessions:
+                    help_txt += " · Có buổi tập"
+
+                if st.button(
+                    label,
+                    key=f"cal_pick_{date_str}",
+                    use_container_width=True,
+                    type=btn_type,
+                    help=help_txt,
+                ):
+                    st.session_state[CALENDAR_SELECTED_DATE_KEY] = date_str
+                    st.session_state.pop(CALENDAR_BACKFILL_DRAFT_KEY, None)
+                    st.rerun()
 
 
 def render_day_detail(selected_date: str) -> None:
-    """Sessions and stats for a selected calendar day — compact block."""
-    try:
-        display_date = datetime.strptime(selected_date, "%Y-%m-%d").strftime(
-            "%d/%m/%Y"
-        )
-    except ValueError:
-        display_date = selected_date
+    """Sessions and stats for a selected calendar day."""
+    session_day = _parse_iso_date(selected_date)
+    display_date = (
+        session_day.strftime("%d/%m/%Y") if session_day else selected_date
+    )
 
     sessions = wkt_svc.get_sessions_by_date(selected_date)
 
@@ -330,12 +292,13 @@ def render_day_detail(selected_date: str) -> None:
 
     if sessions.empty:
         st.markdown(
-            '<p class="calendar-day-detail-empty">Ngày này chưa có buổi tập.</p>',
+            '<p class="calendar-day-detail-empty">Ngày này chưa có buổi tập trong hệ thống.</p>',
             unsafe_allow_html=True,
         )
-        if st.button("Bỏ chọn ngày", key="cal_clear_date", use_container_width=True):
+        render_calendar_backfill_form(selected_date, session_day)
+        if st.button("Đóng", key="cal_clear_date", use_container_width=True):
             st.session_state.pop(CALENDAR_SELECTED_DATE_KEY, None)
-            st.query_params.pop(QP_DATE, None)
+            st.session_state.pop(CALENDAR_BACKFILL_DRAFT_KEY, None)
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
         return
@@ -388,16 +351,309 @@ def render_day_detail(selected_date: str) -> None:
             st.session_state.pop(VIEWING_SUMMARY_KEY, None)
             st.rerun()
 
-    if st.button("Bỏ chọn ngày", key="cal_clear_date_bottom", use_container_width=True):
+    st.markdown("---")
+    st.caption("Nhập thêm buổi khác trong ngày này (nếu bị miss):")
+    render_calendar_backfill_form(selected_date, session_day, allow_extra=True)
+
+    if st.button("Đóng", key="cal_clear_date_bottom", use_container_width=True):
         st.session_state.pop(CALENDAR_SELECTED_DATE_KEY, None)
-        st.query_params.pop(QP_DATE, None)
+        st.session_state.pop(CALENDAR_BACKFILL_DRAFT_KEY, None)
         st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def _default_set_row() -> dict[str, Any]:
+    return {"weight": 0.0, "reps": 0, "rpe": 0.0, "is_warmup": False}
+
+
+def _bf_sets_key(selected_date: str, template_id: int, exercise_id: int) -> str:
+    return f"cal_bf_{selected_date}_{template_id}_ex_{exercise_id}_sets"
+
+
+def _bf_skip_key(selected_date: str, template_id: int, exercise_id: int) -> str:
+    return f"cal_bf_{selected_date}_{template_id}_ex_{exercise_id}_skip"
+
+
+def _bf_meta_key(selected_date: str, template_id: int, field: str) -> str:
+    return f"cal_bf_{selected_date}_{template_id}_{field}"
+
+
+def _ensure_backfill_draft(selected_date: str, template_id: int, exercises) -> None:
+    draft_id = f"{selected_date}_{template_id}"
+    if st.session_state.get(CALENDAR_BACKFILL_DRAFT_KEY) == draft_id:
+        return
+
+    for row in exercises.itertuples(index=False):
+        eid = int(row.exercise_id)
+        count = max(int(row.default_sets), 1)
+        st.session_state[_bf_sets_key(selected_date, template_id, eid)] = [
+            _default_set_row() for _ in range(count)
+        ]
+        st.session_state[_bf_skip_key(selected_date, template_id, eid)] = False
+
+    st.session_state[_bf_meta_key(selected_date, template_id, "energy")] = 7
+    st.session_state[_bf_meta_key(selected_date, template_id, "sleep")] = 0.0
+    st.session_state[_bf_meta_key(selected_date, template_id, "body_weight")] = 0.0
+    st.session_state[_bf_meta_key(selected_date, template_id, "note")] = ""
+
+    st.session_state[CALENDAR_BACKFILL_DRAFT_KEY] = draft_id
+
+
+def _render_backfill_set_row(
+    selected_date: str,
+    template_id: int,
+    exercise_id: int,
+    index: int,
+    set_row: dict[str, Any],
+) -> None:
+    prefix = f"cal_bf_{selected_date}_{template_id}_{exercise_id}_{index}"
+    warmup = bool(set_row.get("is_warmup"))
+    label = f"Set {index + 1}" + (" · KD" if warmup else "")
+
+    with st.container(border=True):
+        st.markdown(f"**{label}**")
+        weight = st.number_input(
+            "Tạ (kg)",
+            min_value=0.0,
+            value=float(set_row.get("weight", 0.0)),
+            step=0.5,
+            format="%.1f",
+            key=f"{prefix}_weight",
+        )
+        reps = st.number_input(
+            "Reps",
+            min_value=0,
+            value=int(set_row.get("reps", 0)),
+            step=1,
+            key=f"{prefix}_reps",
+        )
+        rpe_val = float(set_row.get("rpe") or 0.0)
+        rpe = st.number_input(
+            "RPE (0 = bỏ qua)",
+            min_value=0.0,
+            max_value=10.0,
+            value=rpe_val,
+            step=0.5,
+            format="%.1f",
+            key=f"{prefix}_rpe",
+        )
+        is_warmup = st.checkbox("Khởi động", value=warmup, key=f"{prefix}_warmup")
+
+    sets_key = _bf_sets_key(selected_date, template_id, exercise_id)
+    st.session_state[sets_key][index] = {
+        "weight": weight,
+        "reps": reps,
+        "rpe": rpe if rpe > 0 else None,
+        "is_warmup": is_warmup,
+    }
+
+
+def render_calendar_backfill_form(
+    selected_date: str,
+    session_day: date | None,
+    *,
+    allow_extra: bool = False,
+) -> None:
+    """Form nhập bù buổi tập cho ngày đã chọn trên lịch."""
+    if session_day is None:
+        st.warning("Ngày không hợp lệ.")
+        return
+
+    title = "Nhập bù buổi tập" if not allow_extra else "Thêm buổi tập (nhập bù)"
+    st.markdown(f"**{title}**")
+    st.caption(f"Ngày tập: **{session_day.strftime('%d/%m/%Y')}**")
+
+    templates = tpl_svc.list_active_templates()
+    if templates.empty:
+        st.info("Chưa có template. Vào tab **Cài đặt** để tạo.")
+        return
+
+    if session_day > date.today():
+        st.warning("Không thể nhập buổi tập cho ngày tương lai.")
+        return
+
+    tpl_options = templates["template_id"].tolist()
+    tpl_names = dict(
+        zip(templates["template_id"], templates["template_name"], strict=True)
+    )
+
+    default_tpl = st.session_state.get(CALENDAR_BACKFILL_TEMPLATE_KEY)
+    if default_tpl not in tpl_options:
+        default_tpl = tpl_options[0]
+
+    template_id = st.selectbox(
+        "Chọn template",
+        options=tpl_options,
+        index=tpl_options.index(default_tpl),
+        format_func=lambda tid: tpl_names[int(tid)],
+        key=f"cal_bf_tpl_select_{selected_date}",
+    )
+    template_id = int(template_id)
+    st.session_state[CALENDAR_BACKFILL_TEMPLATE_KEY] = template_id
+
+    plan = wkt_svc.get_template_workout_plan(template_id)
+    exercises = plan.get("exercises")
+    if exercises is None or exercises.empty:
+        st.info("Template chưa có bài tập.")
+        return
+
+    _ensure_backfill_draft(selected_date, template_id, exercises)
+
+    with st.expander("Thông tin buổi", expanded=False):
+        st.slider(
+            "Năng lượng (1–10)",
+            min_value=1,
+            max_value=10,
+            key=_bf_meta_key(selected_date, template_id, "energy"),
+        )
+        st.number_input(
+            "Giờ ngủ",
+            min_value=0.0,
+            max_value=24.0,
+            step=0.5,
+            format="%.1f",
+            key=_bf_meta_key(selected_date, template_id, "sleep"),
+        )
+        st.number_input(
+            "Cân nặng (kg)",
+            min_value=0.0,
+            step=0.1,
+            format="%.1f",
+            key=_bf_meta_key(selected_date, template_id, "body_weight"),
+        )
+        st.text_area(
+            "Ghi chú",
+            height=72,
+            key=_bf_meta_key(selected_date, template_id, "note"),
+        )
+
+    st.markdown("**Danh sách bài**")
+    for row in exercises.itertuples(index=False):
+        eid = int(row.exercise_id)
+        header = f"{row.order_index}. {row.exercise_name}"
+        with st.expander(header, expanded=False):
+            render_plateau_alert(eid, compact=True)
+            st.caption(
+                f"Target {row.target_rep_min}–{row.target_rep_max} reps · "
+                f"{row.default_sets} set"
+            )
+            render_recommendation(eid, template_id, label="Gợi ý")
+
+            skipped_bf = st.checkbox(
+                "Bỏ qua bài này",
+                key=_bf_skip_key(selected_date, template_id, eid),
+            )
+            if skipped_bf:
+                st.caption("Bài này sẽ không được lưu.")
+            else:
+                sets_key = _bf_sets_key(selected_date, template_id, eid)
+                sets_list: list[dict[str, Any]] = st.session_state.setdefault(
+                    sets_key,
+                    [_default_set_row() for _ in range(max(int(row.default_sets), 1))],
+                )
+
+                copy_msg_key = f"cal_bf_copy_msg_{selected_date}_{template_id}_{eid}"
+                if copy_msg_key in st.session_state:
+                    st.caption(st.session_state[copy_msg_key])
+
+                if st.button(
+                    "Copy từ lần trước",
+                    key=f"cal_bf_copy_{selected_date}_{template_id}_{eid}",
+                    use_container_width=True,
+                ):
+                    last = wkt_svc.get_last_sets_for_exercise(eid)
+                    if last is None or last["sets"].empty:
+                        st.session_state[copy_msg_key] = "Chưa có lịch sử."
+                    else:
+                        copied = []
+                        for srow in last["sets"].itertuples(index=False):
+                            rpe = float(srow.rpe) if srow.rpe is not None else 0.0
+                            copied.append(
+                                {
+                                    "weight": float(srow.weight),
+                                    "reps": int(srow.reps),
+                                    "rpe": rpe,
+                                    "is_warmup": bool(srow.is_warmup),
+                                }
+                            )
+                        st.session_state[sets_key] = copied
+                        st.session_state[copy_msg_key] = f"Đã copy {len(copied)} set."
+                    st.rerun()
+
+                for i, set_row in enumerate(sets_list):
+                    _render_backfill_set_row(
+                        selected_date, template_id, eid, i, set_row
+                    )
+
+                if st.button(
+                    "+ Thêm set",
+                    key=f"cal_bf_add_{selected_date}_{template_id}_{eid}",
+                    use_container_width=True,
+                ):
+                    sets_list.append(_default_set_row())
+                    st.session_state[sets_key] = sets_list
+                    st.rerun()
+
+    if st.button(
+        "Lưu buổi nhập bù",
+        type="primary",
+        use_container_width=True,
+        key=f"cal_bf_save_{selected_date}_{template_id}",
+    ):
+        payload: list[dict[str, Any]] = []
+        for row in exercises.itertuples(index=False):
+            eid = int(row.exercise_id)
+            skipped = st.session_state.get(
+                _bf_skip_key(selected_date, template_id, eid), False
+            )
+            sets_list = list(
+                st.session_state.get(_bf_sets_key(selected_date, template_id, eid), [])
+            )
+            payload.append(
+                {
+                    "exercise_id": eid,
+                    "exercise_name": row.exercise_name,
+                    "skipped": skipped,
+                    "sets": sets_list,
+                }
+            )
+
+        energy = st.session_state.get(
+            _bf_meta_key(selected_date, template_id, "energy")
+        )
+        sleep = st.session_state.get(_bf_meta_key(selected_date, template_id, "sleep"))
+        body_w = st.session_state.get(
+            _bf_meta_key(selected_date, template_id, "body_weight")
+        )
+        note = st.session_state.get(_bf_meta_key(selected_date, template_id, "note"))
+
+        try:
+            result = wkt_svc.save_full_workout_session(
+                template_id,
+                session_day,
+                payload,
+                energy_level=int(energy) if energy is not None else None,
+                sleep_hours=float(sleep) if sleep and float(sleep) > 0 else None,
+                body_weight=float(body_w) if body_w and float(body_w) > 0 else None,
+                note=str(note or "").strip() or None,
+            )
+        except WorkoutValidationError as exc:
+            for msg in exc.messages:
+                st.error(msg)
+            return
+        except Exception as exc:
+            st.error(f"Không thể lưu: {exc}")
+            return
+
+        st.session_state[CALENDAR_SELECTED_DATE_KEY] = selected_date
+        st.session_state.pop(CALENDAR_BACKFILL_DRAFT_KEY, None)
+        st.success(f"Đã lưu buổi tập #{int(result['session_id'])}.")
+        st.rerun()
+
+
 def _render_session_card(session_id: int, row: Any) -> None:
-    """Legacy helper — kept for imports; day detail uses compact layout."""
+    """Legacy helper — kept for imports."""
     detail = wkt_svc.get_session_detail(session_id)
     if detail is None:
         st.warning(f"Không tải được buổi #{session_id}.")

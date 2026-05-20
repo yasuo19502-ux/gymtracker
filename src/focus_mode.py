@@ -415,12 +415,14 @@ def get_current_focus_exercise() -> dict[str, Any] | None:
 
 
 def start_current_set() -> None:
+    st.session_state[FOCUS_EXERCISE_PICKER_OPEN] = False
     st.session_state[FOCUS_STATUS] = "exercising"
     st.session_state[FOCUS_SET_STARTED_AT] = _now_iso()
     st.session_state[FOCUS_PAUSED] = False
 
 
 def finish_current_set_and_open_input() -> None:
+    st.session_state[FOCUS_EXERCISE_PICKER_OPEN] = False
     st.session_state[FOCUS_STATUS] = "input_set"
     exercise = get_current_focus_exercise()
     if exercise:
