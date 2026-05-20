@@ -11,26 +11,26 @@ import pandas as pd
 import streamlit as st
 
 from src import template_service as tpl_svc
-from src import theme_service as theme_svc
 from src import workout_service as wkt_svc
 from src.overload_ui import render_plateau_alert, render_recommendation
-from src.session_edit_ui import (
-    CALENDAR_SESSION_EDIT_KEY,
-    render_session_detail_view,
-    render_session_edit,
-)
+from src.session_edit_ui import render_session_detail_view, render_session_edit
 from src.session_summary_ui import VIEWING_SUMMARY_KEY
+from src.theme_service import (
+    get_template_theme,
+    get_template_theme_from_row,
+)
+from src import theme_service as theme_svc
+from src.ui_keys import (
+    CALENDAR_BACKFILL_DRAFT_KEY,
+    CALENDAR_BACKFILL_TEMPLATE_KEY,
+    CALENDAR_MONTH_KEY,
+    CALENDAR_SELECTED_DATE_KEY,
+    CALENDAR_SESSION_DETAIL_KEY,
+    CALENDAR_SESSION_EDIT_KEY,
+    CALENDAR_TAB_CONTAINER_KEY,
+    CALENDAR_YEAR_KEY,
+)
 from src.workout_service import WorkoutValidationError
-
-CALENDAR_YEAR_KEY = "calendar_year"
-CALENDAR_MONTH_KEY = "calendar_month"
-CALENDAR_SELECTED_DATE_KEY = "calendar_selected_date"
-CALENDAR_SESSION_DETAIL_KEY = "calendar_session_detail_id"
-CALENDAR_BACKFILL_TEMPLATE_KEY = "calendar_backfill_template_id"
-CALENDAR_BACKFILL_DRAFT_KEY = "calendar_backfill_draft_key"
-
-# Phải khớp với st.container(key=...) trong app.py để CSS biến/kế thừa đúng DOM.
-CALENDAR_TAB_CONTAINER_KEY = "calendar_theme_scope"
 
 WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 

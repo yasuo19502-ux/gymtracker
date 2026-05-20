@@ -9,9 +9,8 @@ import streamlit as st
 
 from src import workout_service as wkt_svc
 from src.session_summary_ui import VIEWING_SUMMARY_KEY
+from src.ui_keys import CALENDAR_SESSION_DETAIL_KEY, CALENDAR_SESSION_EDIT_KEY
 from src.workout_service import WorkoutValidationError
-
-CALENDAR_SESSION_EDIT_KEY = "calendar_session_edit_id"
 SESSION_DELETE_CONFIRM_KEY = "session_delete_confirm_id"
 
 
@@ -364,8 +363,6 @@ def _render_soft_delete_block(session_id: int) -> None:
         try:
             wkt_svc.soft_delete_workout_session(session_id)
             st.session_state.pop(CALENDAR_SESSION_EDIT_KEY, None)
-            from src.calendar_ui import CALENDAR_SESSION_DETAIL_KEY
-
             st.session_state.pop(CALENDAR_SESSION_DETAIL_KEY, None)
             st.session_state.pop(VIEWING_SUMMARY_KEY, None)
             st.toast("Đã xóa buổi tập.", icon="🗑️")
@@ -377,8 +374,6 @@ def _render_soft_delete_block(session_id: int) -> None:
 
 def _back_to_calendar() -> None:
     if st.button("← Quay lại lịch", use_container_width=True, key="detail_back_cal"):
-        from src.calendar_ui import CALENDAR_SESSION_DETAIL_KEY
-
         st.session_state.pop(CALENDAR_SESSION_DETAIL_KEY, None)
         st.rerun()
 

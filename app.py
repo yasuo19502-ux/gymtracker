@@ -17,16 +17,6 @@ if str(ROOT) not in sys.path:
 
 load_dotenv(ROOT / ".env")
 
-from src.ai_coach_ui import render_ai_tab
-from src.bootstrap import bootstrap_database, inject_styles
-from src.calendar_ui import CALENDAR_TAB_CONTAINER_KEY, render_calendar_tab
-from src.focus_mode import init_focus_state, is_focus_mode_active
-from src.focus_ui import FOCUS_TAB_CONTAINER_KEY, render_focus_tab
-from src.progress_ui import render_progress_tab
-from src.session_summary_ui import NAV_HINT_KEY
-from src.settings_ui import render_settings_tab
-from src.today_ui import TODAY_TAB_CONTAINER_KEY, render_today_tab
-
 
 def main() -> None:
     st.set_page_config(
@@ -35,6 +25,18 @@ def main() -> None:
         layout="centered",
         initial_sidebar_state="collapsed",
     )
+
+    # Import sau set_page_config — ổn định hơn trên Streamlit Cloud (tránh lỗi import vòng).
+    from src.ai_coach_ui import render_ai_tab
+    from src.bootstrap import bootstrap_database, inject_styles
+    from src.calendar_ui import render_calendar_tab
+    from src.focus_mode import init_focus_state, is_focus_mode_active
+    from src.focus_ui import FOCUS_TAB_CONTAINER_KEY, render_focus_tab
+    from src.progress_ui import render_progress_tab
+    from src.session_summary_ui import NAV_HINT_KEY
+    from src.settings_ui import render_settings_tab
+    from src.today_ui import TODAY_TAB_CONTAINER_KEY, render_today_tab
+    from src.ui_keys import CALENDAR_TAB_CONTAINER_KEY
 
     inject_styles()
 

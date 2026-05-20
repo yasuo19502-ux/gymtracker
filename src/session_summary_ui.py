@@ -171,8 +171,7 @@ def _render_exercise_summary_card(
 
 
 def _render_action_buttons(session_id: int) -> None:
-    from src.calendar_ui import CALENDAR_SESSION_DETAIL_KEY
-    from src.session_edit_ui import CALENDAR_SESSION_EDIT_KEY
+    from src.ui_keys import CALENDAR_SESSION_DETAIL_KEY, CALENDAR_SESSION_EDIT_KEY
 
     if st.button("Chỉnh sửa buổi tập", use_container_width=True, key="sum_edit_session"):
         st.session_state[CALENDAR_SESSION_DETAIL_KEY] = session_id

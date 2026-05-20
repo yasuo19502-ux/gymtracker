@@ -13,7 +13,7 @@ from src import template_service as tpl_svc
 from src import theme_service as theme_svc
 from src import workout_service as wkt_svc
 from src.ai_coach import is_ai_configured
-from src.calendar_ui import CALENDAR_SESSION_DETAIL_KEY
+from src.ui_keys import CALENDAR_SESSION_DETAIL_KEY
 from src.session_summary_ui import AI_SESSION_FOCUS_KEY, NAV_HINT_KEY
 
 try:
