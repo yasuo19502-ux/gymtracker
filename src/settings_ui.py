@@ -6,6 +6,13 @@ import streamlit as st
 
 from src import template_service as svc
 from src.template_service import ServiceError, ValidationError
+from src.theme_service import (
+    PRESET_SELECT_ORDER,
+    TEMPLATE_COLOR_PRESETS,
+    get_color_preset,
+    render_theme_preview_card_html,
+    update_template_theme,
+)
 
 
 def _show_error(exc: Exception) -> None:
@@ -69,6 +76,31 @@ def _render_template_section() -> None:
                     value=row.description or "",
                     height=68,
                 )
+                st.markdown("**Màu giao diện / Theme**")
+                cur_raw = getattr(row, "color_preset", None)
+                if cur_raw is None or (
+                    isinstance(cur_raw, float) and cur_raw != cur_raw
+                ):
+                    cur_s = "indigo"
+                else:
+                    cur_s = str(cur_raw).strip().lower()
+                if cur_s not in PRESET_SELECT_ORDER:
+                    cur_s = "indigo"
+                idx = PRESET_SELECT_ORDER.index(cur_s)
+                preset_choice = st.selectbox(
+                    "Chọn theme",
+                    options=PRESET_SELECT_ORDER,
+                    index=idx,
+                    format_func=lambda k: TEMPLATE_COLOR_PRESETS[k]["name"],
+                    key=f"settings_tpl_theme_{row.template_id}",
+                )
+                st.markdown(
+                    render_theme_preview_card_html(
+                        template_name=name,
+                        theme=get_color_preset(preset_choice),
+                    ),
+                    unsafe_allow_html=True,
+                )
                 c1, c2 = st.columns(2)
                 save = c1.form_submit_button("Lưu", type="primary", use_container_width=True)
                 hide = c2.form_submit_button("Ẩn template", use_container_width=True)
@@ -80,6 +112,7 @@ def _render_template_section() -> None:
                             template_name=name,
                             description=desc,
                         )
+                        update_template_theme(row.template_id, preset_choice)
                         st.success("Đã cập nhật template.")
                         st.rerun()
                     except (ValidationError, ServiceError) as exc:

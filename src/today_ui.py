@@ -8,6 +8,7 @@ from typing import Any
 import streamlit as st
 
 from src import template_service as tpl_svc
+from src import theme_service as theme_svc
 from src import workout_service as wkt_svc
 from src.overload_ui import render_plateau_alert, render_recommendation
 from src.session_summary_ui import VIEWING_SUMMARY_KEY, render_session_summary
@@ -16,6 +17,8 @@ from src.workout_service import WorkoutValidationError
 SESSION_TEMPLATE_KEY = "selected_template_id"
 LAST_COMPLETED_SESSION_KEY = "last_completed_session_id"
 WORKOUT_ACTIVE_TEMPLATE_KEY = "workout_active_template_id"
+
+TODAY_TAB_CONTAINER_KEY = "today_theme_scope"
 
 
 def render_today_tab() -> None:
@@ -119,7 +122,36 @@ def _clear_workout_draft_keys(template_id: int, exercises) -> None:
         st.session_state.pop(_skip_state_key(template_id, eid), None)
 
 
+def _inject_today_template_picker_css(templates) -> None:
+    """Nút chọn template theo theme từng template."""
+    chunks: list[str] = []
+    for row in templates.itertuples(index=False):
+        tid = int(row.template_id)
+        theme = theme_svc.get_template_theme(tid)
+        gs = theme_svc._sanitize_css_token(str(theme.get("gradient_start") or ""))
+        ge = theme_svc._sanitize_css_token(str(theme.get("gradient_end") or ""))
+        ac = theme_svc._sanitize_css_token(str(theme.get("accent_color") or ""))
+        gl = theme_svc._sanitize_css_token(str(theme.get("glow_color") or ""))
+        tx = theme_svc._sanitize_css_token(str(theme.get("text_color") or "#ffffff"))
+        key = f"pick_template_{tid}"
+        scope = f".st-key-{TODAY_TAB_CONTAINER_KEY}"
+        base = f"{scope} .st-key-{key} .stButton button"
+        pri = f"{base}[kind='primary'],{base}[data-testid='baseButton-primary']"
+        chunks.append(
+            f"{base}{{background:linear-gradient(145deg,{gs},{ge})!important;"
+            f"border:1px solid {ac}!important;"
+            f"box-shadow:0 0 14px {gl}!important;color:{tx}!important;}}"
+        )
+        chunks.append(
+            f"{pri}{{outline:2px solid rgba(255,255,255,0.92)!important;"
+            f"box-shadow:0 0 0 2px {gl},0 0 20px {gl}!important;}}"
+        )
+    if chunks:
+        st.markdown(f"<style>{''.join(chunks)}</style>", unsafe_allow_html=True)
+
+
 def _render_template_picker(templates) -> None:
+    _inject_today_template_picker_css(templates)
     st.markdown('<div class="gym-template-picker">', unsafe_allow_html=True)
     selected_id = st.session_state.get(SESSION_TEMPLATE_KEY)
     ids = templates["template_id"].tolist()

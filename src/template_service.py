@@ -70,7 +70,18 @@ def list_active_templates() -> pd.DataFrame:
     with get_connection() as conn:
         return pd.read_sql_query(
             """
-            SELECT template_id, template_name, description, is_active, created_at
+            SELECT
+                template_id,
+                template_name,
+                description,
+                is_active,
+                created_at,
+                color_preset,
+                gradient_start,
+                gradient_end,
+                accent_color,
+                glow_color,
+                text_color
             FROM workout_templates
             WHERE is_active = 1
             ORDER BY template_name

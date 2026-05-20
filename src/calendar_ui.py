@@ -11,6 +11,7 @@ import pandas as pd
 import streamlit as st
 
 from src import template_service as tpl_svc
+from src import theme_service as theme_svc
 from src import workout_service as wkt_svc
 from src.overload_ui import render_plateau_alert, render_recommendation
 from src.session_edit_ui import (
@@ -27,6 +28,9 @@ CALENDAR_SELECTED_DATE_KEY = "calendar_selected_date"
 CALENDAR_SESSION_DETAIL_KEY = "calendar_session_detail_id"
 CALENDAR_BACKFILL_TEMPLATE_KEY = "calendar_backfill_template_id"
 CALENDAR_BACKFILL_DRAFT_KEY = "calendar_backfill_draft_key"
+
+# Phải khớp với st.container(key=...) trong app.py để CSS biến/kế thừa đúng DOM.
+CALENDAR_TAB_CONTAINER_KEY = "calendar_theme_scope"
 
 WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 
@@ -159,12 +163,15 @@ def _build_day_map(sessions: pd.DataFrame) -> dict[str, list[dict[str, Any]]]:
     if sessions is None or sessions.empty:
         return day_map
 
-    for row in sessions.itertuples(index=False):
-        day_key = str(row.session_date)
+    for _, row in sessions.iterrows():
+        day_key = str(row["session_date"])
+        theme = theme_svc.get_template_theme_from_row(row)
         day_map.setdefault(day_key, []).append(
             {
-                "session_id": int(row.session_id),
-                "template_name": row.template_name,
+                "session_id": int(row["session_id"]),
+                "template_id": int(row["template_id"]),
+                "template_name": row["template_name"],
+                "theme": theme,
             }
         )
     return day_map
@@ -210,6 +217,105 @@ def render_calendar_weekday_header_html() -> str:
     return "".join(parts)
 
 
+def _calendar_cell_inline_style(theme: dict[str, Any]) -> str:
+    gs = theme_svc._sanitize_css_token(str(theme.get("gradient_start") or ""))
+    ge = theme_svc._sanitize_css_token(str(theme.get("gradient_end") or ""))
+    ac = theme_svc._sanitize_css_token(str(theme.get("accent_color") or ""))
+    gl = theme_svc._sanitize_css_token(str(theme.get("glow_color") or ""))
+    tx = theme_svc._sanitize_css_token(str(theme.get("text_color") or "#ffffff"))
+    return (
+        "background: linear-gradient(145deg, rgba(0,0,0,0.12), rgba(0,0,0,0.25)), "
+        f"linear-gradient(145deg, {gs}, {ge}); "
+        f"border-color: {ac}; "
+        f"box-shadow: 0 0 18px {gl}; "
+        f"color: {tx};"
+    )
+
+
+def _session_chip_style(theme: dict[str, Any]) -> str:
+    return _calendar_cell_inline_style(theme)
+
+
+def _session_summary_chip_html(row: pd.Series) -> str:
+    th = theme_svc.get_template_theme_from_row(row)
+    st_attr = _esc(_session_chip_style(th))
+    name = _esc(str(row["template_name"]))
+    sid = int(row["session_id"])
+    sets = int(row["set_count"] or 0)
+    vol = float(row["total_volume_kg"] or 0.0)
+    return (
+        f'<div class="calendar-session-chip" style="{st_attr}">'
+        f'<span class="calendar-session-chip-title">{name}</span>'
+        f'<span class="calendar-session-chip-meta">#{sid} · {sets} set · {vol:,.0f} kg</span>'
+        f"</div>"
+    )
+
+
+def _inject_calendar_workout_day_styles(day_map: dict[str, list[dict[str, Any]]]) -> None:
+    """Nút ngày có tập — gradient theo theme buổi đầu trong ngày (scoped container tab)."""
+    if not day_map:
+        return
+    chunks: list[str] = []
+    scope = f".st-key-{CALENDAR_TAB_CONTAINER_KEY}"
+    # Cùng cấp specificity với assets/style.css (hàng 7 cột :has(...)), + thêm .st-key-cal_pick_*
+    # để `background` gradient thắng rule nền #111827 — tránh chỉ box-shadow lộ phía dưới.
+    hb7_st = f'{scope} [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child)'
+    hb7_lc = f'{scope} [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child)'
+    for date_str, sessions in day_map.items():
+        if not sessions:
+            continue
+        th = sessions[0].get("theme")
+        if not isinstance(th, dict):
+            th = theme_svc.get_template_theme(int(sessions[0]["template_id"]))
+        gs = theme_svc._sanitize_css_token(str(th.get("gradient_start") or ""))
+        ge = theme_svc._sanitize_css_token(str(th.get("gradient_end") or ""))
+        ac = theme_svc._sanitize_css_token(str(th.get("accent_color") or ""))
+        gl = theme_svc._sanitize_css_token(str(th.get("glow_color") or ""))
+        tx = theme_svc._sanitize_css_token(str(th.get("text_color") or "#ffffff"))
+        key = f"cal_pick_{date_str}"
+        root_st = f"{hb7_st} .st-key-{key}"
+        root_lc = f"{hb7_lc} .st-key-{key}"
+        # Streamlit 1.5x: .stButton bọc WidgetContainer — <button> không phải con trực tiếp.
+        sel = (
+            f"{root_st} .stButton button,"
+            f"{root_lc} .stButton button,"
+            f"{root_st} .stButton button[kind='primary'],"
+            f"{root_lc} .stButton button[kind='primary'],"
+            f"{root_st} .stButton button[kind='secondary'],"
+            f"{root_lc} .stButton button[kind='secondary'],"
+            f"{root_st} .stButton button[data-testid='baseButton-primary'],"
+            f"{root_lc} .stButton button[data-testid='baseButton-primary'],"
+            f"{root_st} .stButton button[data-testid='baseButton-secondary'],"
+            f"{root_lc} .stButton button[data-testid='baseButton-secondary']"
+        )
+        sel_p = (
+            f"{root_st} .stButton button[kind='primary'],"
+            f"{root_lc} .stButton button[kind='primary'],"
+            f"{root_st} .stButton button[data-testid='baseButton-primary'],"
+            f"{root_lc} .stButton button[data-testid='baseButton-primary']"
+        )
+        bg_layers = (
+            f"linear-gradient(145deg, rgba(0,0,0,0.12), rgba(0,0,0,0.25)), "
+            f"linear-gradient(145deg, {gs}, {ge})"
+        )
+        chunks.append(
+            f"{sel}{{background:{bg_layers}!important;"
+            f"border:1px solid {ac}!important;"
+            f"box-shadow:0 0 18px {gl},inset 0 1px 0 rgba(255,255,255,0.12)!important;"
+            f"color:{tx}!important;}}"
+        )
+        chunks.append(
+            f"{root_st} .stButton button p,{root_lc} .stButton button p{{color:{tx}!important;}}"
+        )
+        chunks.append(
+            f"{sel_p}{{outline:2px solid rgba(255,255,255,0.95)!important;"
+            f"outline-offset:1px!important;"
+            f"box-shadow:0 0 0 1px rgba(0,0,0,0.35),0 0 22px {gl}!important;}}"
+        )
+    if chunks:
+        st.markdown(f"<style>{''.join(chunks)}</style>", unsafe_allow_html=True)
+
+
 def render_calendar_grid_widget(
     year: int,
     month: int,
@@ -218,12 +324,17 @@ def render_calendar_grid_widget(
     selected_date: str | None,
     today: date | None = None,
 ) -> None:
-    """Lưới tháng: nút Streamlit (không dùng link) + CSS ép 7 cột trên mobile."""
+    """
+    Lưới 7 cột — dùng nút Streamlit (rerun, không đổi URL / không reload trang).
+    Màu ô có tập từ _inject_calendar_workout_day_styles.
+    """
     today = today or date.today()
     weeks = _calendar_weeks(year, month)
 
     st.markdown(
-        render_calendar_weekday_header_html(),
+        '<div class="calendar-month-wrap">'
+        + render_calendar_weekday_header_html()
+        + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -233,7 +344,8 @@ def render_calendar_grid_widget(
             with col:
                 if cell is None:
                     st.markdown(
-                        '<div class="calendar-day-spacer" aria-hidden="true">&nbsp;</div>',
+                        '<div class="calendar-day-cell calendar-day-cell--empty" '
+                        'aria-hidden="true">&nbsp;</div>',
                         unsafe_allow_html=True,
                     )
                     continue
@@ -273,6 +385,9 @@ def render_calendar_grid_widget(
                     st.session_state[CALENDAR_SELECTED_DATE_KEY] = date_str
                     st.session_state.pop(CALENDAR_BACKFILL_DRAFT_KEY, None)
                     st.rerun()
+
+    # Đặt sau khi render nút để CSS thắng các rule !important trong assets/style.css (source order)
+    _inject_calendar_workout_day_styles(day_map)
 
 
 def render_day_detail(selected_date: str) -> None:
@@ -315,6 +430,15 @@ def render_day_detail(selected_date: str) -> None:
         f"</div>",
         unsafe_allow_html=True,
     )
+
+    chip_parts = [_session_summary_chip_html(row) for _, row in sessions.iterrows()]
+    if chip_parts:
+        st.markdown(
+            '<div class="calendar-session-chip-row">'
+            + "".join(chip_parts)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
 
     exercise_bits: list[str] = []
     for row in sessions.itertuples(index=False):

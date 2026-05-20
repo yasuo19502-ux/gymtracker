@@ -64,7 +64,7 @@ h2, h3, h4 {
 }
 
 /* --- Buttons --- */
-.stButton > button {
+.stButton button {
     min-height: 2.85rem;
     border-radius: var(--gym-radius-sm) !important;
     font-weight: 600;
@@ -72,14 +72,14 @@ h2, h3, h4 {
     padding: 0.5rem 1rem;
 }
 
-.stButton > button[kind="primary"],
-.stButton > button[data-testid="baseButton-primary"] {
+.stButton button[kind="primary"],
+.stButton button[data-testid="baseButton-primary"] {
     min-height: 3.1rem;
     font-size: 1rem;
     border-width: 2px;
 }
 
-.gym-btn-complete .stButton > button {
+.gym-btn-complete .stButton button {
     min-height: 3.5rem !important;
     font-size: 1.1rem !important;
     font-weight: 700 !important;
@@ -87,7 +87,7 @@ h2, h3, h4 {
 }
 
 /* Template picker — large tap targets */
-.gym-template-picker [data-testid="column"] .stButton > button {
+.gym-template-picker [data-testid="column"] .stButton button {
     min-height: 3.5rem;
     font-size: 1.05rem;
     font-weight: 700;
@@ -299,7 +299,7 @@ label[data-testid="stWidgetLabel"] {
     border: 1px solid rgba(255, 255, 255, 0.08);
     padding: 5px 3px;
     text-align: center;
-    text-decoration: none;
+    text-decoration: none !important;
     color: #e5e7eb;
     display: flex;
     flex-direction: column;
@@ -308,6 +308,7 @@ label[data-testid="stWidgetLabel"] {
     gap: 3px;
     box-sizing: border-box;
     min-width: 0;
+    transition: transform 0.18s ease, filter 0.18s ease;
 }
 
 .calendar-day-cell--empty {
@@ -317,28 +318,34 @@ label[data-testid="stWidgetLabel"] {
     min-height: 46px;
 }
 
+/* Màu nền ô có tập: từ inline style theo template — không hardcode một màu chung */
 .calendar-day-cell.has-workout {
-    background: linear-gradient(145deg, rgba(239, 68, 68, 0.85), rgba(168, 85, 247, 0.65));
-    border-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff !important;
 }
 
-/* Giống nút primary khi chọn ngày không có buổi (lưới HTML) */
-.calendar-day-cell.selected:not(.has-workout) {
-    background: linear-gradient(
-        145deg,
-        rgba(239, 68, 68, 0.85),
-        rgba(168, 85, 247, 0.65)
-    );
-    border-color: rgba(255, 255, 255, 0.25);
+.calendar-day-cell.has-workout:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+}
+
+.calendar-day-cell:hover:not(.has-workout):not(.calendar-day-cell--empty) {
+    filter: brightness(1.06);
+    border-color: rgba(255, 255, 255, 0.14);
 }
 
 .calendar-day-cell.selected {
-    outline: 2px solid #ffffff;
-    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+    outline: 2px solid rgba(255, 255, 255, 0.95);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
-.calendar-day-cell.today {
-    border-color: rgba(239, 68, 68, 0.55);
+.calendar-day-cell.today:not(.has-workout) {
+    border-color: rgba(251, 113, 133, 0.45);
+}
+
+.calendar-day-cell.today.has-workout {
+    outline: 1px solid rgba(255, 255, 255, 0.22);
+    outline-offset: 0;
 }
 
 .calendar-day-cell.today::after {
@@ -350,6 +357,33 @@ label[data-testid="stWidgetLabel"] {
     margin-top: -1px;
 }
 
+.calendar-session-chip-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0.65rem 0 0.85rem 0;
+}
+
+.calendar-session-chip {
+    border-radius: 10px;
+    padding: 0.45rem 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.calendar-session-chip-title {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.calendar-session-chip-meta {
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.92;
+}
+
 .calendar-day-number {
     font-size: 12px;
     font-weight: 800;
@@ -358,13 +392,14 @@ label[data-testid="stWidgetLabel"] {
 
 .calendar-workout-badge {
     font-size: 9px;
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1.1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
     padding: 0 1px;
+    color: inherit;
 }
 
 .calendar-day-detail {
@@ -414,12 +449,11 @@ label[data-testid="stWidgetLabel"] {
 }
 
 /*
- * Hàng lịch tập: đúng 7 ô (st.columns(7)).
- * Streamlit 1.32+ dùng data-testid="stColumn" (không còn "column"); flex row vẫn là stHorizontalBlock.
- * Có thể có một div bọc giữa block và các cột → display: contents để lưới áp vào 7 ô.
+ * Hàng lịch tập: đúng 7 ô (st.columns(7)) — chỉ trong tab Lịch (.st-key-calendar_theme_scope).
+ * Không ép background chung bằng !important để CSS inject theo template thắng (ô có buổi tập).
  */
-[data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child),
-[data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) {
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child),
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) {
     display: grid !important;
     grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
     gap: 5px !important;
@@ -427,54 +461,51 @@ label[data-testid="stWidgetLabel"] {
     margin-bottom: 0 !important;
 }
 
-[data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child) > div,
-[data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) > div {
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child) > div,
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) > div {
     display: contents !important;
 }
 
-[data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child)
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child)
     [data-testid="stColumn"],
-[data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child)
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child)
     [data-testid="column"] {
     width: auto !important;
     min-width: 0 !important;
     flex: 1 1 0 !important;
 }
 
-[data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child) .stButton > button,
-[data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) .stButton > button {
+/* Mặc định ô không có buổi; ô có tập được inject gradient template (priority sau cùng trong app) */
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child) .stButton button,
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) .stButton button {
     min-height: 46px !important;
     padding: 4px 2px !important;
     line-height: 1.1 !important;
     white-space: pre-line !important;
     font-size: 0.62rem !important;
-    font-weight: 700 !important;
+    font-weight: 800 !important;
     border-radius: 10px !important;
     background: #111827 !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     color: #e5e7eb !important;
 }
 
-[data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child)
+/* Ngày đang chọn (primary): chỉ viền/outline — màu nền vẫn từ template nếu có buổi tập (inject) */
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child)
     .stButton
-    > button[kind="primary"],
-[data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child)
+    button[kind="primary"],
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child)
     .stButton
-    > button[data-testid="baseButton-primary"],
-[data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child)
+    button[data-testid="baseButton-primary"],
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child)
     .stButton
-    > button[kind="primary"],
-[data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child)
+    button[kind="primary"],
+.st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child)
     .stButton
-    > button[data-testid="baseButton-primary"] {
-    background: linear-gradient(
-        145deg,
-        rgba(239, 68, 68, 0.85),
-        rgba(168, 85, 247, 0.65)
-    ) !important;
-    border-color: rgba(255, 255, 255, 0.25) !important;
-    outline: 2px solid #ffffff;
-    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+    button[data-testid="baseButton-primary"] {
+    outline: 2px solid rgba(255, 255, 255, 0.92) !important;
+    outline-offset: 1px !important;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) !important;
 }
 
 .calendar-day-spacer {
@@ -492,13 +523,13 @@ label[data-testid="stWidgetLabel"] {
         gap: 4px;
     }
 
-    [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child),
-    [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) {
+    .st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child),
+    .st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) {
         gap: 4px !important;
     }
 
-    [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child) .stButton > button,
-    [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) .stButton > button,
+    .st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="stColumn"]:nth-child(7):last-child) .stButton button,
+    .st-key-calendar_theme_scope [data-testid="stHorizontalBlock"]:has([data-testid="column"]:nth-child(7):last-child) .stButton button,
     .calendar-day-spacer {
         min-height: 43px !important;
         border-radius: 9px !important;
@@ -547,7 +578,7 @@ label[data-testid="stWidgetLabel"] {
 
 /* --- Hide dataframe scroll on small screens when unused --- */
 @media (max-width: 480px) {
-    .gym-template-picker [data-testid="column"] .stButton > button {
+    .gym-template-picker [data-testid="column"] .stButton button {
         font-size: 0.92rem;
         min-height: 3.25rem;
     }
@@ -557,22 +588,31 @@ label[data-testid="stWidgetLabel"] {
    Focus Training Mode — premium dark fitness UI (scoped to .focus-shell)
    ============================================================================= */
 .focus-shell {
-    --focus-ready: #6366f1;
-    --focus-ready-glow: rgba(99, 102, 241, 0.55);
-    --focus-exercise: #f59e0b;
-    --focus-exercise-glow: rgba(245, 158, 11, 0.5);
-    --focus-rest: #22d3ee;
-    --focus-rest-glow: rgba(34, 211, 238, 0.45);
+    --template-gradient-start: #6366f1;
+    --template-gradient-end: #312e81;
+    --template-accent: #818cf8;
+    --template-glow: rgba(99, 102, 241, 0.45);
+    --template-text: #ffffff;
+
+    --focus-ready: var(--template-accent);
+    --focus-ready-glow: var(--template-glow);
+    --focus-exercise: var(--template-gradient-start);
+    --focus-exercise-glow: var(--template-glow);
+    --focus-rest: var(--template-gradient-end);
+    /* Nghỉ: glow lạnh hơn, tách bạch khỏi đang tập */
+    --focus-rest-glow: color-mix(in srgb, var(--template-gradient-end) 45%, transparent);
     --focus-timeout: #ef4444;
     --focus-timeout-glow: rgba(239, 68, 68, 0.55);
     --focus-done: #22c55e;
     --focus-done-glow: rgba(34, 197, 94, 0.45);
     --focus-card: rgba(255, 255, 255, 0.06);
     --focus-card-border: rgba(255, 255, 255, 0.1);
-    --focus-text: #f1f5f9;
+    --focus-text: var(--template-text);
     --focus-muted: #94a3b8;
 
-    background: linear-gradient(165deg, #0a0a12 0%, #12102a 38%, #0d1528 72%, #050508 100%);
+    background:
+        radial-gradient(circle at 50% 0%, var(--template-glow), transparent 48%),
+        linear-gradient(165deg, #050508 0%, #0f172a 46%, #050508 100%);
     border-radius: 22px;
     padding: 1rem 0.85rem 1.25rem;
     margin: 0 -0.15rem 1rem;
@@ -625,9 +665,9 @@ label[data-testid="stWidgetLabel"] {
     text-transform: uppercase;
     padding: 0.28rem 0.65rem;
     border-radius: 999px;
-    background: rgba(99, 102, 241, 0.25);
-    color: #c7d2fe;
-    border: 1px solid rgba(129, 140, 248, 0.35);
+    background: color-mix(in srgb, var(--template-accent) 28%, transparent);
+    color: var(--template-text);
+    border: 1px solid color-mix(in srgb, var(--template-accent) 45%, transparent);
     margin-bottom: 0.5rem;
 }
 
@@ -696,12 +736,84 @@ label[data-testid="stWidgetLabel"] {
 .focus-progress-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #6366f1, #a855f7);
+    background: linear-gradient(
+        90deg,
+        var(--template-gradient-start),
+        var(--template-gradient-end)
+    );
     transition: width 0.35s ease;
 }
 
 .focus-progress-fill.exercise {
-    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    background: linear-gradient(
+        90deg,
+        var(--template-accent),
+        var(--template-gradient-start)
+    );
+}
+
+/* Focus main START / timer circle — cùng kiểu gradient pill template (start → end) */
+.focus-shell.focus-state-ready .st-key-focus_main_circle_button button,
+.focus-shell.focus-state-ready .st-key-focus_main_circle_button .stButton button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-ready) .st-key-focus_main_circle_button button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-ready)
+    .st-key-focus_main_circle_button
+    .stButton
+    button {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 42%),
+        linear-gradient(145deg, var(--template-gradient-start) 0%, var(--template-gradient-end) 100%) !important;
+    border: 1px solid color-mix(in srgb, var(--template-accent) 50%, rgba(255, 255, 255, 0.28)) !important;
+    box-shadow:
+        0 10px 32px var(--template-glow),
+        0 0 48px color-mix(in srgb, var(--template-glow) 45%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+    color: var(--template-text) !important;
+}
+
+/* Đang tập: cùng gradient, hơi sáng ở góc trên */
+.focus-shell.focus-state-exercising .st-key-focus_main_circle_button button,
+.focus-shell.focus-state-exercising .st-key-focus_main_circle_button .stButton button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-exercising) .st-key-focus_main_circle_button button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-exercising)
+    .st-key-focus_main_circle_button
+    .stButton
+    button {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 38%),
+        linear-gradient(145deg, var(--template-gradient-start) 0%, var(--template-gradient-end) 100%) !important;
+    border: 1px solid color-mix(in srgb, var(--template-gradient-start) 45%, rgba(255, 255, 255, 0.22)) !important;
+    box-shadow:
+        0 8px 28px var(--template-glow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+    animation: focus-exercise-pulse 2s ease-in-out infinite;
+    color: var(--template-text) !important;
+}
+
+/* Nghỉ: gradient đậm hơn (end → start nhẹ) */
+.focus-shell.focus-state-resting .st-key-focus_main_circle_button button,
+.focus-shell.focus-state-resting .st-key-focus_main_circle_button .stButton button,
+.focus-shell.focus-state-rest_timeout .st-key-focus_main_circle_button button,
+.focus-shell.focus-state-rest_timeout .st-key-focus_main_circle_button .stButton button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-resting) .st-key-focus_main_circle_button button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-resting)
+    .st-key-focus_main_circle_button
+    .stButton
+    button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-rest_timeout) .st-key-focus_main_circle_button button,
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-rest_timeout)
+    .st-key-focus_main_circle_button
+    .stButton
+    button {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 35%),
+        linear-gradient(145deg, var(--template-gradient-end) 0%, color-mix(in srgb, var(--template-gradient-start) 35%, #0f172a) 100%) !important;
+    border: 1px solid color-mix(in srgb, var(--template-gradient-end) 55%, rgba(148, 163, 184, 0.35)) !important;
+    box-shadow:
+        0 8px 24px var(--focus-rest-glow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    animation: focus-rest-glow 2.5s ease-in-out infinite;
+    color: var(--template-text) !important;
 }
 
 .focus-circle-stage {
@@ -847,7 +959,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 }
 
 .st-key-focus_main_circle_button button,
-.st-key-focus_main_circle_button .stButton > button {
+.st-key-focus_main_circle_button .stButton button {
     width: 240px !important;
     height: 240px !important;
     min-width: 240px !important;
@@ -860,10 +972,14 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     justify-content: center !important;
     text-align: center !important;
     margin: 24px auto !important;
-    border: 3px solid rgba(255, 255, 255, 0.85) !important;
-    background: radial-gradient(circle at 35% 30%, #3730a3, #111827) !important;
+    border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 42%),
+        linear-gradient(145deg, #6366f1 0%, #312e81 100%) !important;
     color: #ffffff !important;
-    box-shadow: 0 0 40px rgba(124, 58, 237, 0.35) !important;
+    box-shadow:
+        0 10px 28px rgba(99, 102, 241, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
     font-weight: 800 !important;
     white-space: pre-line !important;
     line-height: 1.4 !important;
@@ -872,7 +988,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 }
 
 .st-key-focus_main_circle_button button p,
-.st-key-focus_main_circle_button .stButton > button p {
+.st-key-focus_main_circle_button .stButton button p {
     font-size: 18px !important;
     line-height: 1.4 !important;
     white-space: pre-line !important;
@@ -886,7 +1002,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 
 @media (max-width: 480px) {
     .st-key-focus_main_circle_button button,
-    .st-key-focus_main_circle_button .stButton > button {
+    .st-key-focus_main_circle_button .stButton button {
         width: min(220px, 78vw) !important;
         height: min(220px, 78vw) !important;
         min-width: min(220px, 78vw) !important;
@@ -995,7 +1111,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     margin: 0.75rem 0;
 }
 
-.focus-action-grid .stButton > button {
+.focus-action-grid .stButton button {
     min-height: 3.1rem !important;
     border-radius: 14px !important;
     font-weight: 600 !important;
@@ -1005,12 +1121,16 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     color: #f1f5f9 !important;
 }
 
-.focus-action-grid .stButton > button[kind="primary"],
-.focus-action-grid .stButton > button[data-testid="baseButton-primary"] {
-    background: linear-gradient(135deg, #06b6d4, #6366f1) !important;
-    border-color: rgba(34, 211, 238, 0.5) !important;
-    color: #fff !important;
-    box-shadow: 0 8px 24px rgba(6, 182, 212, 0.35) !important;
+.focus-action-grid .stButton button[kind="primary"],
+.focus-action-grid .stButton button[data-testid="baseButton-primary"] {
+    background: linear-gradient(
+        135deg,
+        var(--template-gradient-start),
+        var(--template-gradient-end)
+    ) !important;
+    border-color: color-mix(in srgb, var(--template-accent) 55%, transparent) !important;
+    color: var(--template-text) !important;
+    box-shadow: 0 8px 28px var(--template-glow) !important;
     min-height: 3.35rem !important;
     font-size: 1rem !important;
 }
@@ -1021,7 +1141,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     gap: 0.5rem;
 }
 
-.focus-action-danger .stButton > button {
+.focus-action-danger .stButton button {
     background: rgba(239, 68, 68, 0.15) !important;
     border-color: rgba(239, 68, 68, 0.35) !important;
     color: #fecaca !important;
@@ -1037,7 +1157,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     color: #e2e8f0 !important;
 }
 
-.focus-set-card .stButton > button {
+.focus-set-card .stButton button {
     min-height: 3rem !important;
     border-radius: 12px !important;
 }
@@ -1092,7 +1212,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     color: #f8fafc !important;
 }
 
-.focus-ghost-btn .stButton > button {
+.focus-ghost-btn .stButton button {
     background: transparent !important;
     border: 1px dashed rgba(255, 255, 255, 0.2) !important;
     color: var(--focus-muted) !important;
@@ -1101,30 +1221,34 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 
 @keyframes focus-exercise-pulse {
     0%, 100% {
-        box-shadow: 0 0 36px var(--focus-exercise-glow);
+        box-shadow:
+            0 8px 28px var(--template-glow),
+            inset 0 1px 0 rgba(255, 255, 255, 0.14);
         transform: scale(1);
     }
     50% {
-        box-shadow: 0 0 56px var(--focus-exercise-glow);
-        transform: scale(1.02);
+        box-shadow:
+            0 10px 36px color-mix(in srgb, var(--template-glow) 55%, transparent),
+            inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        transform: scale(1.01);
     }
 }
 
 @keyframes focus-rest-glow {
     0%, 100% {
-        box-shadow: 0 0 40px var(--focus-rest-glow);
+        box-shadow: 0 0 22px color-mix(in srgb, var(--focus-rest-glow) 50%, transparent);
     }
     50% {
-        box-shadow: 0 0 64px var(--focus-rest-glow);
+        box-shadow: 0 0 34px color-mix(in srgb, var(--focus-rest-glow) 62%, transparent);
     }
 }
 
 @keyframes focus-danger-pulse {
     0%, 100% {
-        box-shadow: 0 0 32px var(--focus-timeout-glow);
+        box-shadow: 0 0 26px color-mix(in srgb, var(--focus-timeout-glow) 55%, transparent);
     }
     50% {
-        box-shadow: 0 0 56px var(--focus-timeout-glow);
+        box-shadow: 0 0 40px color-mix(in srgb, var(--focus-timeout-glow) 65%, transparent);
     }
 }
 
@@ -1274,17 +1398,22 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     gap: 0.45rem;
 }
 
-.focus-completed-actions .stButton > button {
+.focus-completed-actions .stButton button {
     min-height: 3rem !important;
     border-radius: 14px !important;
     font-weight: 600 !important;
 }
 
-.focus-completed-actions .stButton > button[kind="primary"],
-.focus-completed-actions .stButton > button[data-testid="baseButton-primary"] {
-    background: linear-gradient(135deg, #22c55e, #6366f1) !important;
+.focus-completed-actions .stButton button[kind="primary"],
+.focus-completed-actions .stButton button[data-testid="baseButton-primary"] {
+    background: linear-gradient(
+        135deg,
+        var(--template-gradient-start),
+        var(--template-gradient-end)
+    ) !important;
     border: none !important;
-    box-shadow: 0 10px 28px rgba(34, 197, 94, 0.35) !important;
+    box-shadow: 0 10px 28px var(--template-glow) !important;
+    color: var(--template-text) !important;
 }
 
 .focus-completed-metrics {
@@ -1292,7 +1421,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 }
 
 /* --- Focus immersive compact cockpit (fullscreen active) --- */
-/* Background/layout via section.main:has(.focus-immersive-marker) in focus_ui inject */
+/* Background/layout via [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) in focus_ui inject */
 .focus-compact-shell.focus-shell-active {
     /* Legacy: do not use as empty wrapper (causes huge blank area in Streamlit) */
     display: none !important;
@@ -1314,9 +1443,9 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 
 .focus-compact-template {
     font-weight: 600;
-    color: #a5b4fc;
+    color: var(--template-gradient-start);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
 }
 
 .focus-compact-ex-count {
@@ -1349,8 +1478,8 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 }
 
 .focus-ex-picker-card.focus-ex-picker-current {
-    border-color: rgba(99, 102, 241, 0.65);
-    background: rgba(99, 102, 241, 0.12);
+    border-color: color-mix(in srgb, var(--template-accent) 70%, transparent);
+    background: color-mix(in srgb, var(--template-accent) 14%, transparent);
 }
 
 .focus-ex-picker-panel {
@@ -1388,21 +1517,25 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
 .focus-compact-progress-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #6366f1, #a855f7);
+    background: linear-gradient(
+        90deg,
+        var(--template-gradient-start),
+        var(--template-gradient-end)
+    );
 }
 
 .st-key-focus_open_picker {
     margin-top: 0.05rem;
 }
 
-.st-key-focus_open_picker .stButton > button {
+.st-key-focus_open_picker .stButton button {
     min-height: 34px !important;
     max-height: 36px !important;
     padding: 0.2rem 0.35rem !important;
     font-size: 0.72rem !important;
     font-weight: 700 !important;
-    border: 1px solid rgba(99, 102, 241, 0.5) !important;
-    background: rgba(99, 102, 241, 0.2) !important;
+    border: 1px solid color-mix(in srgb, var(--template-accent) 45%, transparent) !important;
+    background: color-mix(in srgb, var(--template-accent) 18%, transparent) !important;
     white-space: nowrap;
 }
 
@@ -1424,7 +1557,7 @@ div[data-testid="stVerticalBlock"].st-key-focus_main_circle_button {
     text-overflow: ellipsis;
 }
 
-section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button button p {
+[data-testid="stAppViewContainer"]:has(.focus-immersive-marker) .st-key-focus_main_circle_button button p {
     font-size: 12px !important;
     line-height: 1.22 !important;
     white-space: pre-line;
@@ -1434,8 +1567,16 @@ section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button butto
     margin: 0.1rem auto 0.25rem !important;
 }
 
+.focus-compact-shell .stButton button {
+    min-height: 42px !important;
+    max-height: 46px !important;
+    padding: 0.4rem 0.5rem !important;
+    font-size: 0.82rem !important;
+    border-radius: 12px !important;
+}
+
 .focus-compact-shell .st-key-focus_main_circle_button button,
-.focus-compact-shell .st-key-focus_main_circle_button .stButton > button {
+.focus-compact-shell .st-key-focus_main_circle_button .stButton button {
     width: clamp(160px, 46vw, 200px) !important;
     height: clamp(160px, 46vw, 200px) !important;
     min-width: clamp(160px, 46vw, 200px) !important;
@@ -1445,19 +1586,13 @@ section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button butto
     margin: 8px auto !important;
     font-size: 0.95rem !important;
     padding: 0.65rem !important;
+    border-radius: 50% !important;
+    aspect-ratio: 1 / 1 !important;
 }
 
 .focus-compact-shell .st-key-focus_main_circle_button button p {
     font-size: 15px !important;
     line-height: 1.35 !important;
-}
-
-.focus-compact-shell .stButton > button {
-    min-height: 42px !important;
-    max-height: 46px !important;
-    padding: 0.4rem 0.5rem !important;
-    font-size: 0.82rem !important;
-    border-radius: 12px !important;
 }
 
 .focus-compact-save-head {
@@ -1486,10 +1621,50 @@ section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button butto
 
 @media (max-width: 430px) {
     .focus-compact-shell .st-key-focus_main_circle_button button,
-    .focus-compact-shell .st-key-focus_main_circle_button .stButton > button {
+    .focus-compact-shell .st-key-focus_main_circle_button .stButton button {
         width: clamp(160px, 44vw, 170px) !important;
         height: clamp(160px, 44vw, 170px) !important;
         min-width: clamp(160px, 44vw, 170px) !important;
         min-height: clamp(160px, 44vw, 170px) !important;
     }
+}
+
+/* --- Settings: template theme preview --- */
+.tpl-theme-preview-card {
+    border-radius: 14px;
+    padding: 0.65rem 0.75rem 0.75rem;
+    margin: 0.35rem 0 0.65rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.tpl-theme-preview-top {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.25rem;
+}
+
+.tpl-theme-preview-badge {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tpl-theme-preview-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin: 0 0 0.15rem;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+.tpl-theme-preview-sub {
+    font-size: 0.78rem;
+    font-weight: 600;
+    opacity: 0.92;
+    margin: 0;
 }

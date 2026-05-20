@@ -19,13 +19,13 @@ load_dotenv(ROOT / ".env")
 
 from src.ai_coach_ui import render_ai_tab
 from src.bootstrap import bootstrap_database, inject_styles
-from src.calendar_ui import render_calendar_tab
-from src.progress_ui import render_progress_tab
-from src.settings_ui import render_settings_tab
-from src.session_summary_ui import NAV_HINT_KEY
+from src.calendar_ui import CALENDAR_TAB_CONTAINER_KEY, render_calendar_tab
 from src.focus_mode import init_focus_state, is_focus_mode_active
-from src.focus_ui import render_focus_tab
-from src.today_ui import render_today_tab
+from src.focus_ui import FOCUS_TAB_CONTAINER_KEY, render_focus_tab
+from src.progress_ui import render_progress_tab
+from src.session_summary_ui import NAV_HINT_KEY
+from src.settings_ui import render_settings_tab
+from src.today_ui import TODAY_TAB_CONTAINER_KEY, render_today_tab
 
 
 def main() -> None:
@@ -67,11 +67,14 @@ def main() -> None:
     )
 
     with tab_today:
-        render_today_tab()
+        with st.container(key=TODAY_TAB_CONTAINER_KEY):
+            render_today_tab()
     with tab_focus:
-        render_focus_tab()
+        with st.container(key=FOCUS_TAB_CONTAINER_KEY):
+            render_focus_tab()
     with tab_calendar:
-        render_calendar_tab()
+        with st.container(key=CALENDAR_TAB_CONTAINER_KEY):
+            render_calendar_tab()
     with tab_progress:
         render_progress_tab()
     with tab_ai:

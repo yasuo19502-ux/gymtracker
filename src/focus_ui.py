@@ -10,6 +10,8 @@ import streamlit as st
 
 from src import focus_mode as focus
 from src import template_service as tpl_svc
+from src import theme_service as theme_svc
+from src import workout_service as wkt_svc
 from src.ai_coach import is_ai_configured
 from src.calendar_ui import CALENDAR_SESSION_DETAIL_KEY
 from src.session_summary_ui import AI_SESSION_FOCUS_KEY, NAV_HINT_KEY
@@ -20,6 +22,9 @@ except ImportError:
     st_autorefresh = None  # type: ignore[misc, assignment]
 
 FOCUS_MAIN_CIRCLE_KEY = "focus_main_circle_button"
+
+"""Khớp st.container(key=...) trong app.py — theme kế thừa xuống toàn bộ tab Focus."""
+FOCUS_TAB_CONTAINER_KEY = "focus_theme_scope"
 
 _JUMP_BLOCKED_MSG = "Hãy kết thúc hoặc hủy set hiện tại trước khi đổi bài."
 
@@ -33,23 +38,9 @@ _MICROCOPY = {
 }
 
 _MAIN_CIRCLE_CSS: dict[str, str] = {
-    "ready": """
-        background: radial-gradient(circle at 35% 30%, #4f46e5, #111827) !important;
-        border-color: rgba(165, 180, 252, 0.9) !important;
-        box-shadow: 0 0 40px rgba(124, 58, 237, 0.45) !important;
-    """,
-    "exercising": """
-        background: radial-gradient(circle at 35% 30%, #d97706, #1c1917) !important;
-        border-color: rgba(253, 224, 71, 0.9) !important;
-        box-shadow: 0 0 48px rgba(245, 158, 11, 0.5) !important;
-        animation: focus-exercise-pulse 2s ease-in-out infinite;
-    """,
-    "resting": """
-        background: radial-gradient(circle at 35% 30%, #0891b2, #0f172a) !important;
-        border-color: rgba(103, 232, 249, 0.85) !important;
-        box-shadow: 0 0 52px rgba(34, 211, 238, 0.4) !important;
-        animation: focus-rest-glow 2.5s ease-in-out infinite;
-    """,
+    "ready": "",
+    "exercising": "",
+    "resting": "",
     "rest_timeout": """
         background: radial-gradient(circle at 35% 30%, #dc2626, #1c0a0a) !important;
         border-color: rgba(252, 165, 165, 0.9) !important;
@@ -72,9 +63,47 @@ def _esc(text: str) -> str:
     return html.escape(str(text))
 
 
+def _resolve_focus_theme_template_id() -> int | None:
+    """Template dùng cho màu Focus: buổi đang tập > dropdown > buổi đã ghi hôm nay trên lịch."""
+    if focus.is_focus_workout_in_progress():
+        raw = st.session_state.get(focus.FOCUS_SELECTED_TEMPLATE_ID)
+        return int(raw) if raw is not None else None
+    raw_pick = st.session_state.get("focus_tab_template_select")
+    if raw_pick is not None:
+        return int(raw_pick)
+    try:
+        day_df = wkt_svc.get_sessions_by_date(date.today())
+        if day_df is not None and not day_df.empty:
+            return int(day_df.iloc[0]["template_id"])
+    except (TypeError, ValueError, KeyError):
+        pass
+    return None
+
+
+def inject_focus_tab_theme_css() -> None:
+    """Đặt --template-* trên container tab Focus (Streamlit không bọc được bằng div markdown)."""
+    tid = _resolve_focus_theme_template_id()
+    theme = theme_svc.resolve_theme_for_template_id(tid)
+    tv = theme_svc.build_template_css_vars(theme)
+    rules = ";".join(
+        f"{k}:{theme_svc._sanitize_css_token(v)}" for k, v in tv.items()
+    )
+    st.markdown(
+        f"<style>.st-key-{FOCUS_TAB_CONTAINER_KEY}, .st-key-{FOCUS_TAB_CONTAINER_KEY} * "
+        f"{{ {rules} }}</style>",
+        unsafe_allow_html=True,
+    )
+
+
 def _focus_shell_open() -> None:
     status = st.session_state.get(focus.FOCUS_STATUS) or "idle"
-    _html(f'<div class="focus-shell focus-state-{_esc(status)}">')
+    tid = _resolve_focus_theme_template_id()
+    theme = theme_svc.resolve_theme_for_template_id(tid)
+    style_attr = theme_svc.format_template_style_attr(theme)
+    _html(
+        f'<div class="focus-shell focus-state-{_esc(status)}" '
+        f'style="{_esc(style_attr)}">'
+    )
 
 
 def _focus_shell_close() -> None:
@@ -96,14 +125,19 @@ def _progress_bar_html(label: str, value: str, pct: float, *, variant: str = "")
 
 
 def _inject_main_circle_css(state: str) -> None:
-    """State-specific colors for the real Streamlit circle button."""
-    extra = _MAIN_CIRCLE_CSS.get(state, _MAIN_CIRCLE_CSS["ready"])
+    """State-specific overrides (timeout danger, completed green). Theme from CSS vars."""
+    extra = _MAIN_CIRCLE_CSS.get(state, "")
+    if not extra:
+        return
     st.markdown(
         f"<style>"
         f".focus-shell.focus-state-{state} .st-key-{FOCUS_MAIN_CIRCLE_KEY} button,"
-        f"section.main:has(.focus-immersive-marker) .st-key-{FOCUS_MAIN_CIRCLE_KEY} button,"
-        f"div[data-testid='stVerticalBlock'].st-key-{FOCUS_MAIN_CIRCLE_KEY} button,"
-        f".st-key-{FOCUS_MAIN_CIRCLE_KEY} button {{"
+        f".focus-shell.focus-state-{state} .st-key-{FOCUS_MAIN_CIRCLE_KEY} .stButton button,"
+        f'[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-{state}) '
+        f".st-key-{FOCUS_MAIN_CIRCLE_KEY} button,"
+        f'[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-{state}) '
+        f".st-key-{FOCUS_MAIN_CIRCLE_KEY} .stButton button,"
+        f"div[data-testid='stVerticalBlock'].st-key-{FOCUS_MAIN_CIRCLE_KEY} button {{"
         f"{extra}"
         f"}}"
         f"</style>",
@@ -175,8 +209,17 @@ def _render_main_circle_button(*, disabled: bool = False, compact: bool = False)
         st.rerun()
 
 
-def _inject_focus_immersive_layout_css(status: str) -> None:
-    """Fullscreen layout — hidden marker + :has(); avoids empty 100dvh div."""
+def _inject_focus_immersive_layout_css(
+    status: str, *, template_id: int | None = None
+) -> None:
+    """Fullscreen layout — hidden marker + :has(); inject template CSS variables."""
+    tid = template_id if template_id is not None else _resolve_focus_theme_template_id()
+    theme = theme_svc.resolve_theme_for_template_id(tid)
+    tv = theme_svc.build_template_css_vars(theme)
+    var_lines = "\n".join(
+        f"            {k}: {theme_svc._sanitize_css_token(v)};" for k, v in tv.items()
+    )
+    extra_state = _MAIN_CIRCLE_CSS.get(status, "")
     st.markdown(
         f"""
         <style>
@@ -186,23 +229,39 @@ def _inject_focus_immersive_layout_css(status: str) -> None:
             margin: 0 !important;
             padding: 0 !important;
         }}
-        section.main:has(.focus-immersive-marker) {{
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) {{
+{var_lines}
+            --focus-ready: var(--template-accent);
+            --focus-ready-glow: var(--template-glow);
+            --focus-exercise: var(--template-gradient-start);
+            --focus-exercise-glow: var(--template-glow);
+            --focus-rest: var(--template-gradient-end);
+            --focus-rest-glow: color-mix(in srgb, var(--template-gradient-end) 45%, transparent);
             --focus-muted: #94a3b8;
-            --focus-text: #f1f5f9;
-            background: linear-gradient(165deg, #0a0a12 0%, #12102a 38%, #0d1528 72%, #050508 100%) !important;
+            --focus-text: var(--template-text);
+            background:
+                radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--template-glow) 22%, transparent), transparent 55%),
+                linear-gradient(165deg, #050508 0%, #0f172a 48%, #050508 100%) !important;
         }}
-        section.main:has(.focus-immersive-marker) .block-container {{
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) .block-container {{
             padding: 0.35rem 0.5rem 0.5rem !important;
             max-width: 100% !important;
         }}
-        section.main:has(.focus-immersive-marker) [data-testid="stVerticalBlock"] > div {{
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) [data-testid="stVerticalBlock"] > div {{
             gap: 0.35rem;
         }}
-        section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button {{
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) .st-key-focus_main_circle_button {{
             margin: 0.1rem auto 0.25rem !important;
         }}
-        section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button button,
-        section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button .stButton > button {{
+        /* Nút phụ (Thoát, v.v.) — không áp lên nút tròn START (tránh max-height + bo góc vuông). */
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) .stButton button {{
+            min-height: 42px !important;
+            max-height: 46px !important;
+            font-size: 0.82rem !important;
+            border-radius: 12px !important;
+        }}
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) .st-key-focus_main_circle_button button,
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) .st-key-focus_main_circle_button .stButton button {{
             width: clamp(160px, 46vw, 200px) !important;
             height: clamp(160px, 46vw, 200px) !important;
             min-width: clamp(160px, 46vw, 200px) !important;
@@ -212,22 +271,30 @@ def _inject_focus_immersive_layout_css(status: str) -> None:
             margin: 8px auto !important;
             font-size: 0.95rem !important;
             padding: 0.65rem !important;
+            border-radius: 50% !important;
+            aspect-ratio: 1 / 1 !important;
         }}
-        section.main:has(.focus-immersive-marker) .st-key-focus_main_circle_button button p {{
+        [data-testid="stAppViewContainer"]:has(.focus-immersive-marker) .st-key-focus_main_circle_button button p {{
             font-size: 15px !important;
             line-height: 1.35 !important;
-        }}
-        section.main:has(.focus-immersive-marker) .stButton > button {{
-            min-height: 42px !important;
-            max-height: 46px !important;
-            font-size: 0.82rem !important;
-            border-radius: 12px !important;
         }}
         </style>
         """,
         unsafe_allow_html=True,
     )
-    _inject_main_circle_css(status)
+    if extra_state:
+        st.markdown(
+            f"<style>"
+            f".focus-shell.focus-state-{status} .st-key-{FOCUS_MAIN_CIRCLE_KEY} button,"
+            f'[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-{status}) '
+            f".st-key-{FOCUS_MAIN_CIRCLE_KEY} button,"
+            f'[data-testid="stAppViewContainer"]:has(.focus-immersive-marker.focus-state-{status}) '
+            f".st-key-{FOCUS_MAIN_CIRCLE_KEY} .stButton button {{"
+            f"{extra_state}"
+            f"}}"
+            f"</style>",
+            unsafe_allow_html=True,
+        )
 
 
 def _immersive_marker(status: str) -> None:
@@ -549,7 +616,9 @@ def render_focus_mode_active_fullscreen() -> None:
     """Immersive training cockpit — no app tabs/header."""
     focus.init_focus_state()
     status = st.session_state.get(focus.FOCUS_STATUS) or "ready"
-    _inject_focus_immersive_layout_css(status)
+    raw_tid = st.session_state.get(focus.FOCUS_SELECTED_TEMPLATE_ID)
+    tid = int(raw_tid) if raw_tid is not None else _resolve_focus_theme_template_id()
+    _inject_focus_immersive_layout_css(status, template_id=tid)
     _immersive_marker(status)
     _render_focus_exit_bar()
 
@@ -564,6 +633,7 @@ def render_focus_mode_active_fullscreen() -> None:
 def render_focus_tab() -> None:
     """Focus tab in normal app layout (template picker / resume paused workout)."""
     focus.init_focus_state()
+    inject_focus_tab_theme_css()
     _focus_shell_open()
 
     if focus.is_focus_workout_in_progress():

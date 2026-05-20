@@ -201,6 +201,29 @@ def run_migrations() -> None:
             """
         )
 
+        _migrate_template_theme_columns(conn)
+
+
+def _migrate_template_theme_columns(conn: sqlite3.Connection) -> None:
+    """Per-template color theme (preset + denormalized colors)."""
+    theme_cols: list[tuple[str, str]] = [
+        ("color_preset", "TEXT DEFAULT 'indigo'"),
+        ("gradient_start", "TEXT"),
+        ("gradient_end", "TEXT"),
+        ("accent_color", "TEXT"),
+        ("glow_color", "TEXT"),
+        ("text_color", "TEXT DEFAULT '#ffffff'"),
+    ]
+    for col_name, col_def in theme_cols:
+        if not _table_has_column(conn, "workout_templates", col_name):
+            conn.execute(
+                f"ALTER TABLE workout_templates ADD COLUMN {col_name} {col_def}"
+            )
+
+    from src.theme_service import apply_named_template_preset_backfill
+
+    apply_named_template_preset_backfill(conn)
+
 
 # SQL fragments — treat NULL as legacy active rows
 SESSION_ACTIVE_WHERE = "COALESCE(s.status, 'completed') != 'deleted'"
