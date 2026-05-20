@@ -192,41 +192,231 @@ label[data-testid="stWidgetLabel"] {
     margin-bottom: 0.35rem;
 }
 
-/* --- Calendar --- */
-.cal-weekday {
+/* --- Calendar (HTML/CSS grid — mobile 7 columns) --- */
+.calendar-shell {
+    margin-bottom: 0.5rem;
+}
+
+.calendar-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin: 0 0 0.5rem 0;
+    line-height: 1.2;
+}
+
+.calendar-controls {
+    margin-bottom: 0.65rem;
+}
+
+.calendar-controls [data-testid="column"] {
+    min-width: 0;
+}
+
+.calendar-controls .stSelectbox > div > div {
+    min-height: 2.25rem;
+}
+
+.calendar-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 0.75rem;
+}
+
+@media (min-width: 520px) {
+    .calendar-stats-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.calendar-stat-card {
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 0.45rem 0.5rem;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.calendar-stat-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #8b94a7;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.calendar-stat-value {
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #f3f4f6;
+}
+
+.calendar-stat-unit {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #9ca3af;
+    margin-left: 0.15rem;
+}
+
+.calendar-stat-template {
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
+    width: 100%;
+}
+
+.calendar-weekdays {
+    margin-bottom: 4px;
+}
+
+.calendar-weekday {
     text-align: center;
-    font-size: 0.7rem;
+    font-size: 11px;
     font-weight: 700;
-    color: var(--gym-muted);
-    margin: 0 0 0.2rem 0;
-    letter-spacing: 0.02em;
+    color: #8b94a7;
 }
 
-.cal-cell.cal-empty {
-    min-height: 2rem;
-}
-
-.gym-calendar-grid [data-testid="column"] .stButton > button {
-    min-height: 2.55rem !important;
-    font-size: 0.62rem !important;
-    font-weight: 600 !important;
-    line-height: 1.15 !important;
-    padding: 0.25rem 0.15rem !important;
-    white-space: pre-line !important;
-    border-radius: 10px !important;
-}
-
-.gym-calendar-grid [data-testid="column"] .stButton > button[kind="primary"] {
-    box-shadow: 0 0 0 2px rgba(255, 75, 75, 0.35);
-}
-
-.cal-today-dot {
-    display: block;
+.calendar-day-cell {
+    min-height: 46px;
+    border-radius: 10px;
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 5px 3px;
     text-align: center;
-    color: var(--gym-accent);
-    font-size: 0.45rem;
-    line-height: 0.4rem;
-    margin-top: -0.3rem;
+    text-decoration: none;
+    color: #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.calendar-day-cell--empty {
+    background: transparent;
+    border-color: transparent;
+    pointer-events: none;
+    min-height: 46px;
+}
+
+.calendar-day-cell.has-workout {
+    background: linear-gradient(145deg, rgba(239, 68, 68, 0.85), rgba(168, 85, 247, 0.65));
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.calendar-day-cell.selected {
+    outline: 2px solid #ffffff;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+}
+
+.calendar-day-cell.today {
+    border-color: rgba(239, 68, 68, 0.55);
+}
+
+.calendar-day-cell.today::after {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #f87171;
+    margin-top: -1px;
+}
+
+.calendar-day-number {
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.calendar-workout-badge {
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    padding: 0 1px;
+}
+
+.calendar-day-detail {
+    margin-top: 0.85rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.calendar-day-detail-title {
+    margin: 0 0 0.45rem 0;
+    font-size: 0.88rem;
+    color: #d1d5db;
+}
+
+.calendar-day-detail-empty {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.85rem;
+    color: #9ca3af;
+}
+
+.calendar-day-detail-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    font-size: 0.82rem;
+    color: #e5e7eb;
+    margin-bottom: 0.45rem;
+}
+
+.calendar-day-detail-templates {
+    color: #c4b5fd;
+    font-weight: 600;
+}
+
+.calendar-day-detail-exercises {
+    margin: 0 0 0.5rem 0;
+    padding-left: 1.1rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: #d1d5db;
+}
+
+.calendar-day-detail-exercises li {
+    margin-bottom: 0.25rem;
+}
+
+@media (max-width: 430px) {
+    .calendar-grid {
+        gap: 4px;
+    }
+
+    .calendar-day-cell,
+    .calendar-day-cell--empty {
+        min-height: 43px;
+        border-radius: 9px;
+        padding: 4px 2px;
+    }
+
+    .calendar-day-number {
+        font-size: 11px;
+    }
+
+    .calendar-workout-badge {
+        font-size: 8px;
+    }
 }
 
 /* --- Progress charts --- */
